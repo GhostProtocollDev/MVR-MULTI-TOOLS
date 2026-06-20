@@ -15,7 +15,6 @@ const nextConfig = {
   reactStrictMode: true,
   compress: true,
   productionBrowserSourceMaps: false,
-  swcMinify: true,
   async headers() {
     return [
       {

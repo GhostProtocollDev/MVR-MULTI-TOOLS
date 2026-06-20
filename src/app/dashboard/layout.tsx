@@ -16,6 +16,7 @@ const mainNavItems = [
   { icon: "LayoutDashboard", label: "Dashboard", href: "/dashboard", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Eye", label: "Remote Clients", href: "/dashboard/remote/clients", roles: ["owner", "administrator"] },
   { icon: "Package", label: "Planes", href: "/dashboard/plans", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
+  { icon: "Music", label: "Música", href: "/dashboard/music", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Palette", label: "Temas", href: "/dashboard/themes", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Settings", label: "Ajustes", href: "/dashboard/settings", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
 ]
@@ -55,6 +56,7 @@ const iconMap: Record<string, JSX.Element> = {
   Eye: <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></>,
   Palette2: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="4" /></>,
   MonitorCog: <><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /><circle cx="12" cy="10" r="2" /><path d="M12 6v1" /><path d="M12 13v1" /><path d="M15.66 7.34l-.7.7" /><path d="M9.04 12.96l-.7.7" /><path d="M17 10h-1" /><path d="M8 10H7" /><path d="M15.66 12.66l-.7-.7" /><path d="M9.04 9.04l-.7-.7" /></>,
+  Music: <><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>,
 }
 
 function NavIcon({ name }: { name: string }) {

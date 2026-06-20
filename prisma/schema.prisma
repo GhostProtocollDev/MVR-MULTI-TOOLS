@@ -2,12 +2,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// For Vercel deployment: change provider to "postgresql" and use a PostgreSQL URL
-// Recommended: Supabase (supabase.com) or Neon (neon.tech)
+// For Vercel: change provider to "postgresql", use DIRECT_URL, update DATABASE_URL
+// Local dev uses SQLite. Vercel uses Supabase/Neon PostgreSQL.
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // For serverless via Supabase/Neon
 }
 
 model User {
@@ -703,4 +702,56 @@ model ScreenCapture {
   client    RemoteClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("screen_captures")
+}
+
+model Artist {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  genre     String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  albums Album[]
+  tracks Track[]
+
+  @@map("artists")
+}
+
+model Album {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String
+  artistId  String
+  year      Int
+  coverImage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  tracks Track[]
+
+  @@unique([artistId, slug])
+  @@map("albums")
+}
+
+model Track {
+  id          String   @id @default(cuid())
+  title       String
+  artistId    String
+  albumId     String
+  trackNumber Int      @default(1)
+  duration    Int?
+  filePath    String?
+  fileSize    Int?
+  mimeType    String?
+  plays       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  album  Album  @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@map("tracks")
 }
