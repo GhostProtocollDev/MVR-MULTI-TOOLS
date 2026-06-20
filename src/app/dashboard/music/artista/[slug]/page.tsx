@@ -5,15 +5,16 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { motion } from "framer-motion"
 import { Spinner } from "@/components/ui"
-
-interface Artist {
-  id: string; name: string; slug: string; genre: string | null
-  albums: Album[]
-  _count: { tracks: number }
-}
+import { useMusicStore } from "@/store/music"
 
 interface Album {
   id: string; title: string; slug: string; year: number; coverImage: string | null
+  _count: { tracks: number }
+}
+
+interface Artist {
+  id: string; name: string; slug: string; genre: string | null; image: string | null
+  albums: Album[]
   _count: { tracks: number }
 }
 
@@ -49,17 +50,21 @@ export default function ArtistPage({ params }: { params: { slug: string } }) {
   if (!artist) return notFound()
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 pb-28">
       <Link href="/dashboard/music" className="text-sm text-zinc-400 hover:text-white transition-colors">← Volver a Música</Link>
 
       <div className="flex items-end gap-6">
-        <div className={`w-40 h-40 rounded-2xl bg-gradient-to-br ${GENRE_COLORS[artist.genre || ""] || "from-zinc-700 to-zinc-500"} flex items-center justify-center text-7xl`}>
-          🎤
+        <div className={`w-44 h-44 rounded-2xl bg-gradient-to-br ${GENRE_COLORS[artist.genre || ""] || "from-zinc-700 to-zinc-500"} overflow-hidden flex items-center justify-center`}>
+          {artist.image ? (
+            <img src={artist.image} alt={artist.name} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-7xl">🎤</span>
+          )}
         </div>
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500 mb-1">{artist.genre || "Artista"}</p>
           <h1 className="text-4xl font-bold text-white">{artist.name}</h1>
-          <p className="text-zinc-400 mt-2">{artist.albums?.length || 0} álbumes · {artist._count?.tracks || 0} pistas</p>
+          <p className="text-zinc-400 mt-2">{artist.albums?.length || 0} álbumes · {artist._count?.tracks || 0} canciones</p>
         </div>
       </div>
 
@@ -72,10 +77,16 @@ export default function ArtistPage({ params }: { params: { slug: string } }) {
             {artist.albums.map(album => (
               <Link key={album.id} href={`/dashboard/music/album/${album.slug}`}>
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden cursor-pointer hover:border-zinc-700 transition-all duration-200">
-                  <div className="aspect-square bg-gradient-to-br from-zinc-800 to-zinc-700 flex items-center justify-center text-5xl">💿</div>
+                  <div className="aspect-square bg-gradient-to-br from-zinc-800 to-zinc-700 overflow-hidden flex items-center justify-center">
+                    {album.coverImage ? (
+                      <img src={album.coverImage} alt={album.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-5xl">💿</span>
+                    )}
+                  </div>
                   <div className="p-3">
                     <p className="text-sm font-semibold text-white truncate">{album.title}</p>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">{album.year} · {album._count?.tracks || 0} pistas</p>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">{album.year} · {album._count?.tracks || 0} canciones</p>
                   </div>
                 </motion.div>
               </Link>

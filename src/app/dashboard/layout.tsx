@@ -11,6 +11,7 @@ import { getRoleColor, getRoleLabel } from "@/types"
 import VisualSettingsPanel from "@/components/dashboard/VisualSettingsPanel"
 import BackgroundGallery from "@/components/dashboard/BackgroundGallery"
 import CreateLicenseModal from "@/components/dashboard/CreateLicenseModal"
+import MusicPlayerBar from "@/components/dashboard/MusicPlayerBar"
 
 const mainNavItems = [
   { icon: "LayoutDashboard", label: "Dashboard", href: "/dashboard", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
@@ -624,6 +625,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <VisualSettingsPanel />
       <CreateLicenseModal />
+      <MusicPlayerBar />
     </div>
   )
 }
