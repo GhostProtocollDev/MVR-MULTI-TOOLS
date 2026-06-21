@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Badge, Input, Button } from "@/components/ui"
+import { Button } from "@/components/ui"
 import Link from "next/link"
 import toast from "react-hot-toast"
 
@@ -288,7 +288,7 @@ export default function RemoteClientsPage() {
                   { l: "ISP", v: selected.isp }, { l: "CPU", v: selected.cpu != null ? `${selected.cpu.toFixed(1)}%` : "—" },
                   { l: "RAM", v: selected.ramTotal ? `${(selected.ramUsed || 0).toFixed(1)} / ${selected.ramTotal.toFixed(1)} GB` : "—" },
                   { l: "Screen", v: selected.screenWidth ? `${selected.screenWidth}x${selected.screenHeight}` : "—" },
-                  { l: "Status", v: getStatus(selected.lastHeartbeat).label },
+                  { l: "Status", v: getStatus(selected).label },
                   { l: "Last Seen", v: fmtAgo(selected.lastHeartbeat) },
                   { l: "First Seen", v: new Date(selected.firstSeen).toLocaleDateString() },
                 ].map(({ l, v }) => (

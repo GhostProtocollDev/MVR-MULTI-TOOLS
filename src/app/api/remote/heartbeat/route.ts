@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { clientId, cpu, ramUsed, ramTotal, status, hostname, ipPublic, ipLocal } = body
+    const { clientId, cpu, ramUsed, ramTotal, hostname, ipPublic, ipLocal } = body
 
     if (!clientId) {
       return NextResponse.json({ error: "clientId required" }, { status: 400 })

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Button, Badge, Input, Spinner } from "@/components/ui"
+import { Button, Badge } from "@/components/ui"
 import { useParams, useRouter } from "next/navigation"
 import toast from "react-hot-toast"
 import dynamic from "next/dynamic"
@@ -49,8 +49,7 @@ export default function ClientDetailPage() {
     setClient(data.client)
     setCommandHistory((data.client?.commands || []).slice(0, 100))
     if (data.client?.screenCaptures?.length) {
-      const last = data.client.screenCaptures[data.client.screenCaptures.length - 1]
-      if (last.imagePath) setScreenshot(last.imagePath)
+      setScreenshot(data.client.screenCaptures[0].imagePath || null)
     }
   }, [params.id])
 
@@ -125,7 +124,7 @@ export default function ClientDetailPage() {
 
   useEffect(() => {
     if (activeTab === "explorer" && params.id) listDirectory(filePath)
-  }, [activeTab])
+  }, [activeTab, filePath, params.id])
 
   function navigateTo(path: string) {
     setFilePath(path)

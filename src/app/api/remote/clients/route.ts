@@ -37,15 +37,20 @@ export async function GET() {
     })
 
     // If there are clients with outdated status, update them occasionally
+    // Update DB status for stale clients
     const outdated = clients.filter(c => {
       if (!c.lastHeartbeat) return false
       const diff = (now - new Date(c.lastHeartbeat).getTime()) / 1000
-      return (c.status === "online" && diff > 90) || (c.status !== "offline" && diff > 300)
+      if (diff > 300 && c.status !== "offline") return true
+      if (diff > 90 && c.status === "online") return true
+      return false
     })
     for (const c of outdated.slice(0, 50)) {
+      const diff = (now - new Date(c.lastHeartbeat!).getTime()) / 1000
+      const newStatus = diff > 300 ? "offline" : "idle"
       await prisma.remoteClient.update({
         where: { id: c.id },
-        data: { status: "offline" },
+        data: { status: newStatus },
       })
     }
 
