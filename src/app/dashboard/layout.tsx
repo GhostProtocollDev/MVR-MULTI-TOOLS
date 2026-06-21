@@ -12,6 +12,7 @@ import VisualSettingsPanel from "@/components/dashboard/VisualSettingsPanel"
 import BackgroundGallery from "@/components/dashboard/BackgroundGallery"
 import CreateLicenseModal from "@/components/dashboard/CreateLicenseModal"
 import MusicPlayerBar from "@/components/dashboard/MusicPlayerBar"
+import ActivateLicenseModal from "@/components/dashboard/ActivateLicenseModal"
 
 const mainNavItems = [
   { icon: "LayoutDashboard", label: "Dashboard", href: "/dashboard", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
@@ -79,6 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showBgGallery, setShowBgGallery] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [licenseLoaded, setLicenseLoaded] = useState(false)
+  const [showActivateLicense, setShowActivateLicense] = useState(false)
 
   const user = (session?.user as any) || {}
   const userRole: string = user.role || "user"
@@ -226,24 +228,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            {isOwner ? (
-              <span className="text-[11px] font-semibold text-yellow-400/80">👑 LIFETIME · PERMANENT ACCESS</span>
-            ) : (
-              <>
-                <span className="text-[11px] font-medium" style={{ color: getLicenseColor(license) }}>
-                  {getLicenseLabel(license)}
-                </span>
-                {license.expiresAt && !license.isLifetime && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {(() => {
-                      const days = Math.ceil((new Date(license.expiresAt).getTime() - Date.now()) / 86400000)
-                      return days > 0 ? `${days}d remaining` : "Expired"
-                    })()}
+            <div className="flex items-center gap-2 mt-0.5">
+              {isOwner ? (
+                <span className="text-[11px] font-semibold text-yellow-400/80">👑 OWNER · LIFETIME</span>
+              ) : (
+                <>
+                  <span className="text-[11px] font-medium" style={{ color: getLicenseColor(license) }}>
+                    {getLicenseLabel(license)}
                   </span>
-                )}
-              </>
-            )}
+                  {license.plan?.name && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">
+                      {license.plan.name}
+                    </span>
+                  )}
+                  {license.expiresAt && !license.isLifetime && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {(() => {
+                        const days = Math.ceil((new Date(license.expiresAt).getTime() - Date.now()) / 86400000)
+                        return days > 0 ? `${days}d left` : "Expired"
+                      })()}
+                    </span>
+                  )}
+                </>
+              )}
           </div>
         </div>
       </div>
@@ -276,19 +283,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </span>
           </div>
           <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[11px] font-medium text-muted-foreground">FREE PLAN</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider text-zinc-400 border border-zinc-700 bg-zinc-800/50">
+              FREE PLAN
+            </span>
           </div>
         </div>
       </div>
-      <Link
-        href="/dashboard/plans"
-        className="mt-2 w-full h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
+      <button
+        onClick={() => setShowActivateLicense(true)}
+        className="mt-2 w-full h-8 rounded-lg bg-gradient-to-r from-primary/20 to-primary/10 text-primary hover:from-primary/30 hover:to-primary/20 text-xs font-medium flex items-center justify-center gap-1.5 transition-all border border-primary/20"
       >
         <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        Add License
-      </Link>
+        Activate License
+      </button>
     </div>
   )
 
@@ -625,6 +634,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <VisualSettingsPanel />
       <CreateLicenseModal />
+      <ActivateLicenseModal
+        open={showActivateLicense}
+        onClose={() => setShowActivateLicense(false)}
+        onActivated={() => { setShowActivateLicense(false); window.location.reload() }}
+      />
       <MusicPlayerBar />
     </div>
   )
