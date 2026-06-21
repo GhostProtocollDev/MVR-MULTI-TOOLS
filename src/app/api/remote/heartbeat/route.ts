@@ -32,6 +32,27 @@ export async function POST(req: Request) {
       data: updateData,
     })
 
+    // Auto-geolocate if no lat/lng yet
+    if (!client.lat && ipPublic) {
+      try {
+        const geoRes = await fetch(`http://ip-api.com/json/${ipPublic}?fields=status,lat,lon,country,countryCode,city,isp`)
+        const geo = await geoRes.json()
+        if (geo.status === "success") {
+          await prisma.remoteClient.update({
+            where: { clientId },
+            data: {
+              country: geo.country || client.country,
+              countryCode: geo.countryCode || client.countryCode,
+              city: geo.city || client.city,
+              isp: geo.isp || client.isp,
+              lat: geo.lat,
+              lng: geo.lon,
+            },
+          })
+        }
+      } catch { /* silent */ }
+    }
+
     const pendingCommands = await prisma.commandLog.findMany({
       where: { clientId: client.id, status: "pending" },
       orderBy: { executedAt: "asc" },
