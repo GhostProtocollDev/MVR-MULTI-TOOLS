@@ -21,6 +21,8 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
   const [stealth, setStealth] = useState(true)
   const [melt, setMelt] = useState(false)
   const [singleInstance, setSingleInstance] = useState(false)
+  const [antiAnalysis, setAntiAnalysis] = useState(true)
+  const [obfuscate, setObfuscate] = useState(true)
   const [installName, setInstallName] = useState("WindowsHostService")
   const [building, setBuilding] = useState(false)
   const [buildResult, setBuildResult] = useState<any>(null)
@@ -52,6 +54,8 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
           stealth,
           melt,
           singleInstance,
+          antiAnalysis,
+          obfuscate,
           installName,
         }),
       })
@@ -236,6 +240,26 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
                         </div>
                         <div className={`w-10 h-5 rounded-full transition-colors ${singleInstance ? "bg-blue-500" : "bg-zinc-700"}`} onClick={() => setSingleInstance(!singleInstance)}>
                           <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${singleInstance ? "ml-5" : "ml-0.5"}`} />
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="text-sm font-medium text-white">Anti-Analysis</span>
+                          <p className="text-[10px] text-zinc-500">Evade VM, sandbox, debugger detection (VirusTotal, Windows Defender)</p>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full transition-colors ${antiAnalysis ? "bg-purple-500" : "bg-zinc-700"}`} onClick={() => setAntiAnalysis(!antiAnalysis)}>
+                          <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${antiAnalysis ? "ml-5" : "ml-0.5"}`} />
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="text-sm font-medium text-white">String Obfuscation</span>
+                          <p className="text-[10px] text-zinc-500">XOR-encode sensitive strings to avoid static pattern matching</p>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full transition-colors ${obfuscate ? "bg-purple-500" : "bg-zinc-700"}`} onClick={() => setObfuscate(!obfuscate)}>
+                          <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${obfuscate ? "ml-5" : "ml-0.5"}`} />
                         </div>
                       </label>
 
