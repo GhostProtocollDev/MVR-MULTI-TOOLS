@@ -86,29 +86,20 @@ export default function ClientDetailPage() {
     if (streaming) {
       if (streamRef.current) { clearInterval(streamRef.current); streamRef.current = null }
       setStreaming(false)
+      sendCommand("!livestream off")
       return
     }
     setStreaming(true)
-    async function capture() {
-      try {
-        await fetch(`/api/remote/clients/${params.id}/command`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "!screenshot" }),
-        })
-        setTimeout(async () => {
-          const res = await fetch(`/api/remote/clients/${params.id}`)
-          const d = await res.json()
-          const sc = d.client?.screenCaptures
-          if (sc?.length) {
-            const last = sc[sc.length - 1]
-            if (last.imagePath) { setScreenshot(last.imagePath); setScreenshotTime(formatDate(last.createdAt)) }
-          }
-        }, 2000)
-      } catch {}
+    sendCommand("!livestream on")
+    // Update live frame every 500ms
+    let frameVersion = 0
+    function updateFrame() {
+      frameVersion++
+      setScreenshot(`/api/remote/clients/${params.id}/live-frame?v=${frameVersion}`)
+      setScreenshotTime(new Date().toLocaleTimeString())
     }
-    capture()
-    streamRef.current = setInterval(capture, 5000)
+    updateFrame()
+    streamRef.current = setInterval(updateFrame, 500)
   }
 
   useEffect(() => {
@@ -245,29 +236,47 @@ export default function ClientDetailPage() {
       {activeTab === "screen" && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">Live Screen</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Live Stream</h2>
+              {streaming && (
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-[10px] text-red-400 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  LIVE
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3">
-              {screenshotTime && <span className="text-[10px] text-zinc-500">Last: {screenshotTime}</span>}
+              {screenshotTime && <span className="text-[10px] text-muted-foreground">{screenshotTime}</span>}
               <Button size="sm" onClick={toggleStream} variant={streaming ? "danger" : "primary"}>
-                {streaming ? "▮▮ Stop Stream" : "▶ Start Stream"}
+                {streaming ? "⬛ Stop" : "▶ Start Stream"}
               </Button>
             </div>
           </div>
           {screenshot ? (
-            <div className="rounded-xl border border-zinc-800 bg-black overflow-hidden">
+            <div className="rounded-xl border border-border/50 bg-black overflow-hidden">
               <img
                 src={screenshot}
-                alt="Screen"
-                className="w-full h-auto max-h-[70vh] object-contain"
-                style={{ imageRendering: "auto" }}
+                alt="Live Stream"
+                className="w-full h-auto max-h-[75vh] object-contain"
               />
             </div>
           ) : (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 flex items-center justify-center h-[400px]">
+            <div className="rounded-xl border border-border/50 bg-card/60 flex items-center justify-center h-[400px]">
               <div className="text-center space-y-3">
                 <span className="text-6xl block">📺</span>
-                <p className="text-zinc-400">No screen capture yet</p>
-                <Button size="sm" onClick={() => sendCommand("!screenshot")}>Request Screenshot</Button>
+                <p className="text-muted-foreground">No screen capture yet</p>
+                <Button size="sm" onClick={async () => {
+                  toast.success("Requesting screenshot...")
+                  await sendCommand("!screenshot")
+                  setTimeout(async () => {
+                    const r = await fetch(`/api/remote/clients/${params.id}/screenshot`)
+                    const d = await r.json()
+                    if (d.screenshots?.length) {
+                      const last = d.screenshots[0]
+                      if (last.imagePath) { setScreenshot(last.imagePath); setScreenshotTime(formatDate(last.createdAt)) }
+                    }
+                  }, 3000)
+                }}>Request Screenshot</Button>
               </div>
             </div>
           )}
