@@ -54,16 +54,22 @@ export default function RobloxLoginPage() {
 
   function openRobloxSession() {
     const ck = cookie.trim()
-    const script = `document.cookie=".ROBLOSECURITY=${ck};domain=.roblox.com;path=/;Secure";location.reload()`
+    const script = `javascript:(function(){document.cookie=".ROBLOSECURITY=${ck};domain=.roblox.com;path=/;Secure";location.reload()})()`
     navigator.clipboard.writeText(script).catch(() => {})
 
+    // Try cross-origin injection via opened window
     const w = window.open("https://www.roblox.com/home", "_blank")
     if (w) {
-      try { (w as any).eval(script) } catch {}
+      setTimeout(() => { try { (w as any).eval(script) } catch {} }, 2000)
     }
 
-    toast("Script copiado → F12 → Console → Ctrl+V → Enter", { duration: 6000, icon: "📋" })
+    toast("Script copiado → F12 → Console → Ctrl+V → Enter", { duration: 5000, icon: "📋" })
     addLog("✅ Script copied — paste in Roblox console (F12 → Console → Ctrl+V → Enter)")
+  }
+
+  function getBookmarklet(): string {
+    const ck = cookie.trim()
+    return `javascript:(function(){document.cookie=".ROBLOSECURITY=${ck};domain=.roblox.com;path=/;Secure";location.reload()})()`
   }
 
   return (
@@ -209,10 +215,29 @@ export default function RobloxLoginPage() {
           </div>
 
           {userData && (
-            <div className="mt-3 p-4 rounded-2xl bg-green-500/5 border border-green-500/20 max-w-2xl text-center">
-              <p className="text-xs text-green-400/80 font-mono">
-                📋 Script copied! In Roblox tab: <span className="text-white font-bold">F12</span> → <span className="text-white font-bold">Console</span> → <span className="text-white font-bold">Ctrl+V</span> → <span className="text-white font-bold">Enter</span>
-              </p>
+            <div className="mt-3 space-y-3 max-w-2xl">
+              <div className="p-4 rounded-2xl bg-green-500/5 border border-green-500/20 text-center">
+                <p className="text-xs text-green-400/80 font-mono">
+                  📋 Script copied! In Roblox tab: <span className="text-white font-bold">F12</span> → <span className="text-white font-bold">Console</span> → <span className="text-white font-bold">Ctrl+V</span> → <span className="text-white font-bold">Enter</span>
+                </p>
+              </div>
+              {/* Bookmarklet */}
+              <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
+                <p className="text-xs text-primary/80 font-mono font-bold mb-2">🔖 One-Click Login (Bookmarklet)</p>
+                <p className="text-[10px] text-zinc-400 mb-2">Drag this link to your bookmarks bar → click it while on roblox.com → instant login!</p>
+                <a
+                  href={getBookmarklet()}
+                  className="inline-block px-4 py-2 bg-primary/20 border border-primary/40 rounded-lg text-sm font-mono font-bold text-primary hover:bg-primary/30 transition-colors cursor-grab active:cursor-grabbing"
+                  onDragStart={(e) => { e.dataTransfer.setData("text/plain", getBookmarklet()) }}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    navigator.clipboard.writeText(getBookmarklet())
+                    toast.success("Bookmarklet copied! Now paste it as a new bookmark URL", { duration: 4000, icon: "🔖" })
+                  }}
+                >
+                  🔖 Roblox Auto-Login ← Drag to bookmarks
+                </a>
+              </div>
             </div>
           )}
 
