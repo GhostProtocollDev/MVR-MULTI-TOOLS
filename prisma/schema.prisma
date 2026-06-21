@@ -620,6 +620,7 @@ model RemoteClient {
   version         String?
   status          String   @default("offline")
   lastSeen        DateTime @default(now())
+  lastHeartbeat   DateTime?
   firstSeen       DateTime @default(now())
   certificate     String?
   fingerprint     String?

@@ -16,8 +16,9 @@ export async function POST(req: Request) {
     }
 
     const updateData: any = {
-      status: status || "online",
+      status: "online",
       lastSeen: new Date(),
+      lastHeartbeat: new Date(),
     }
     if (cpu !== undefined) updateData.cpu = cpu
     if (ramUsed !== undefined) updateData.ramUsed = ramUsed
