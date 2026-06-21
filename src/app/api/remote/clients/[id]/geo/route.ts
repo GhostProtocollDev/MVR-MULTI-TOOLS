@@ -21,6 +21,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           countryCode: data.countryCode || client.countryCode,
           city: data.city || client.city,
           isp: data.isp || client.isp,
+          lat: data.lat,
+          lng: data.lon,
         },
       })
 

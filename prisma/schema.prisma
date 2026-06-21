@@ -609,6 +609,8 @@ model RemoteClient {
   countryCode     String?
   city            String?
   isp             String?
+  lat             Float?
+  lng             Float?
   user            String?
   hostname        String?
   ipPublic        String?

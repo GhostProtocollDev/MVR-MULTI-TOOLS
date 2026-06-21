@@ -19,6 +19,8 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
   const [country, setCountry] = useState(builder?.country || "")
   const [persist, setPersist] = useState(true)
   const [stealth, setStealth] = useState(true)
+  const [melt, setMelt] = useState(false)
+  const [singleInstance, setSingleInstance] = useState(false)
   const [installName, setInstallName] = useState("WindowsHostService")
   const [building, setBuilding] = useState(false)
   const [buildResult, setBuildResult] = useState<any>(null)
@@ -48,6 +50,8 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
           country: country || undefined,
           persist,
           stealth,
+          melt,
+          singleInstance,
           installName,
         }),
       })
@@ -212,6 +216,26 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
                         </div>
                         <div className={`w-10 h-5 rounded-full transition-colors ${stealth ? "bg-green-500" : "bg-zinc-700"}`} onClick={() => setStealth(!stealth)}>
                           <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${stealth ? "ml-5" : "ml-0.5"}`} />
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="text-sm font-medium text-white">Melt File</span>
+                          <p className="text-[10px] text-zinc-500">Self-deletes the original .exe after installing persistence</p>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full transition-colors ${melt ? "bg-red-500" : "bg-zinc-700"}`} onClick={() => setMelt(!melt)}>
+                          <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${melt ? "ml-5" : "ml-0.5"}`} />
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <div>
+                          <span className="text-sm font-medium text-white">Single Instance</span>
+                          <p className="text-[10px] text-zinc-500">Only allows one copy of the exe to run at a time</p>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full transition-colors ${singleInstance ? "bg-blue-500" : "bg-zinc-700"}`} onClick={() => setSingleInstance(!singleInstance)}>
+                          <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${singleInstance ? "ml-5" : "ml-0.5"}`} />
                         </div>
                       </label>
 
