@@ -335,6 +335,8 @@ export default function DatabasePage() {
                                   </div>
                                 )
                               }
+
+                              if (item.type === "system_info") {
                                 return (
                                   <div key={item.id} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
                                     <div className="flex items-center justify-between mb-2">
