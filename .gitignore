@@ -48,6 +48,9 @@ coverage
 # Uploads
 public/uploads/*
 !public/uploads/.gitkeep
+!public/uploads/music/
+public/uploads/music/*
+!public/uploads/music/placeholder.mp3
 
 # Templates
 templates/*.exe
