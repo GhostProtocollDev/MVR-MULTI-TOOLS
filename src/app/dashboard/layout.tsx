@@ -13,6 +13,7 @@ import BackgroundGallery from "@/components/dashboard/BackgroundGallery"
 import CreateLicenseModal from "@/components/dashboard/CreateLicenseModal"
 import MusicPlayerBar from "@/components/dashboard/MusicPlayerBar"
 import ActivateLicenseModal from "@/components/dashboard/ActivateLicenseModal"
+import RenewLicenseModal from "@/components/dashboard/RenewLicenseModal"
 
 const mainNavItems = [
   { icon: "LayoutDashboard", label: "Dashboard", href: "/dashboard", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
@@ -81,6 +82,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mounted, setMounted] = useState(false)
   const [licenseLoaded, setLicenseLoaded] = useState(false)
   const [showActivateLicense, setShowActivateLicense] = useState(false)
+  const [showRenewLicense, setShowRenewLicense] = useState(false)
 
   const user = (session?.user as any) || {}
   const userRole: string = user.role || "user"
@@ -242,12 +244,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </span>
                   )}
                   {license.expiresAt && !license.isLifetime && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {(() => {
-                        const days = Math.ceil((new Date(license.expiresAt).getTime() - Date.now()) / 86400000)
-                        return days > 0 ? `${days}d left` : "Expired"
-                      })()}
-                    </span>
+                    <>
+                      <span className="text-[10px] text-muted-foreground">
+                        {(() => {
+                          const days = Math.ceil((new Date(license.expiresAt).getTime() - Date.now()) / 86400000)
+                          return days > 0 ? `${days}d left` : "Expired"
+                        })()}
+                      </span>
+                      <div className="w-full mt-0.5 text-[9px] text-zinc-500">
+                        Expires: {new Date(license.expiresAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </div>
+                    </>
                   )}
                 </>
               )}
@@ -255,15 +262,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
       {!isOwner && license && !license.isLifetime && (
-        <Link
-          href="/dashboard/plans"
+        <button
+          onClick={() => setShowRenewLicense(true)}
           className="mt-2 w-full h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
           </svg>
-          Renew
-        </Link>
+          Renew License
+        </button>
+      )}
+
+      {/* Expiration Warning */}
+      {!isOwner && license && !license.isLifetime && license.expiresAt && (
+        (() => {
+          const days = Math.ceil((new Date(license.expiresAt).getTime() - Date.now()) / 86400000)
+          if (days <= 7 && days > 0) {
+            const colors = days <= 1 ? "text-red-400 border-red-500/20 bg-red-500/5" : days <= 3 ? "text-orange-400 border-orange-500/20 bg-orange-500/5" : "text-yellow-400 border-yellow-500/20 bg-yellow-500/5"
+            return (
+              <div className={`mt-2 px-2 py-1.5 rounded-lg border text-[10px] text-center ${colors}`}>
+                ⚠️ Expires in {days} day{days !== 1 ? "s" : ""} — Renew now
+              </div>
+            )
+          }
+          return null
+        })()
       )}
     </div>
   ) : (
@@ -638,6 +661,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         open={showActivateLicense}
         onClose={() => setShowActivateLicense(false)}
         onActivated={() => { setShowActivateLicense(false); window.location.reload() }}
+      />
+      <RenewLicenseModal
+        open={showRenewLicense}
+        onClose={() => setShowRenewLicense(false)}
+        onRenewed={() => { setShowRenewLicense(false); window.location.reload() }}
+        currentLicense={license}
       />
       <MusicPlayerBar />
     </div>
