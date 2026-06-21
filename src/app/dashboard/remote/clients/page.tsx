@@ -29,9 +29,10 @@ function osIcon(os: string | null): string {
   return "💻"
 }
 
-function getStatus(lastHb: string | null): { state: string; dot: string; color: string; bg: string; label: string } {
-  if (!lastHb) return { state: "offline", ...statusBadge("offline") }
-  const diff = (Date.now() - new Date(lastHb).getTime()) / 1000
+function getStatus(c: { lastHeartbeat: string | null; lastSeen: string | null }): { state: string; dot: string; color: string; bg: string; label: string } {
+  const hb = c.lastHeartbeat || c.lastSeen
+  if (!hb) return { state: "offline", ...statusBadge("offline") }
+  const diff = (Date.now() - new Date(hb).getTime()) / 1000
   if (diff <= 90) return { state: "online", ...statusBadge("online") }
   if (diff <= 300) return { state: "idle", ...statusBadge("idle") }
   return { state: "offline", ...statusBadge("offline") }
@@ -75,9 +76,9 @@ export default function RemoteClientsPage() {
 
   useEffect(() => { fetchClients(); const t = setInterval(fetchClients, 5000); return () => clearInterval(t) }, [fetchClients])
 
-  const onlineN = clients.filter(c => getStatus(c.lastHeartbeat).state === "online").length
-  const idleN = clients.filter(c => getStatus(c.lastHeartbeat).state === "idle").length
-  const offlineN = clients.filter(c => getStatus(c.lastHeartbeat).state === "offline").length
+  const onlineN = clients.filter(c => getStatus(c).state === "online").length
+  const idleN = clients.filter(c => getStatus(c).state === "idle").length
+  const offlineN = clients.filter(c => getStatus(c).state === "offline").length
 
   const byCountry: Record<string, number> = {}
   clients.forEach(c => { const n = c.country || "Unknown"; byCountry[n] = (byCountry[n] || 0) + 1 })
@@ -86,12 +87,12 @@ export default function RemoteClientsPage() {
   const mapMarkers = clients.filter(c => c.lat && c.lng).map(c => ({
     id: c.id, clientId: c.clientId, lat: c.lat, lng: c.lng,
     label: c.hostname || c.clientId?.substring(0, 8),
-    status: getStatus(c.lastHeartbeat).state,
-    country: c.country, city: c.city, lastSeen: fmtAgo(c.lastHeartbeat),
+    status: getStatus(c).state,
+    country: c.country, city: c.city, lastSeen: fmtAgo(c.lastHeartbeat || c.lastSeen),
   }))
 
   const filtered = clients.filter(c => {
-    if (statusFilter !== "all" && getStatus(c.lastHeartbeat).state !== statusFilter) return false
+    if (statusFilter !== "all" && getStatus(c).state !== statusFilter) return false
     if (!search) return true
     const q = search.toLowerCase()
     return (c.clientId + c.hostname + c.country + c.user + c.ipPublic + (c.os || "")).toLowerCase().includes(q)
@@ -230,7 +231,7 @@ export default function RemoteClientsPage() {
                 <tr><td colSpan={10} className="p-8 text-center text-muted-foreground">No clients found</td></tr>
               ) : (
                 filtered.map(c => {
-                  const st = getStatus(c.lastHeartbeat)
+                  const st = getStatus(c)
                   const flag = flagEmoji(c.countryCode)
                   return (
                     <tr key={c.id} className="border-b border-border/30 hover:bg-muted/30 transition-colors text-xs cursor-pointer"
@@ -290,7 +291,7 @@ export default function RemoteClientsPage() {
                       </td>
                       {/* Last Seen */}
                       <td className="p-3">
-                        <span className="text-muted-foreground">{fmtAgo(c.lastHeartbeat)}</span>
+                        <span className="text-muted-foreground">{fmtAgo(c.lastHeartbeat || c.lastSeen)}</span>
                       </td>
                       {/* Manage */}
                       <td className="p-3 text-right">
