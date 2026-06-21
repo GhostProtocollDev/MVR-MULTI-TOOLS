@@ -15,14 +15,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: "Command is required" }, { status: 400 })
     }
 
-    const client = await prisma.remoteClient.findUnique({ where: { id: params.id } })
+    const client = await prisma.remoteClient.findFirst({
+      where: { OR: [{ id: params.id }, { clientId: params.id }] },
+    })
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 })
     }
 
     const log = await prisma.commandLog.create({
       data: {
-        clientId: params.id,
+        clientId: client.id,
         command,
         status: "pending",
         executedBy: (session.user as any).username || "dashboard",

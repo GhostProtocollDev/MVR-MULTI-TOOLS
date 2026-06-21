@@ -146,14 +146,37 @@ export default function ClientDetailPage() {
         body: JSON.stringify({ command: cmd }),
       })
       if (!res.ok) throw new Error("Failed")
+      const data = await res.json()
+      const cmdId = data.command?.id || Date.now().toString()
       toast.success(`Sent: ${cmd.substring(0, 30)}`)
-      setCommandHistory(prev => [{ id: Date.now().toString(), command: cmd, status: "success", executedAt: new Date().toISOString() }, ...prev])
+      setCommandHistory(prev => [{ id: cmdId, command: cmd, status: "pending", executedAt: new Date().toISOString() }, ...prev])
       setCommand("")
+      // Poll for command result
+      pollCommandResult(cmdId)
     } catch {
       toast.error("Failed to send command")
     } finally {
       setSending(false)
     }
+  }
+
+  async function pollCommandResult(cmdId: string) {
+    let attempts = 0
+    const poll = setInterval(async () => {
+      attempts++
+      if (attempts > 20) { clearInterval(poll); return }
+      try {
+        const res = await fetch(`/api/remote/clients/${params.id}`)
+        const d = await res.json()
+        const cmd = d.client?.commands?.find((c: any) => c.id === cmdId)
+        if (cmd && cmd.status !== "pending") {
+          clearInterval(poll)
+          setCommandHistory(prev => prev.map(c => c.id === cmdId ? { ...c, status: cmd.status, output: cmd.output } : c))
+          if (cmd.status === "completed") toast.success("Command completed")
+          else if (cmd.status === "failed") toast.error("Command failed")
+        }
+      } catch {}
+    }, 3000)
   }
 
   if (loading) {

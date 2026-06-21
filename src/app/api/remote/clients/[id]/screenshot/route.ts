@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     await prisma.remoteClient.update({
       where: { id: client.id },
-      data: { lastSeen: new Date(), status: "online" },
+      data: { lastSeen: new Date() },
     })
 
     return NextResponse.json({ success: true, path: `/screenshots/${filename}` })

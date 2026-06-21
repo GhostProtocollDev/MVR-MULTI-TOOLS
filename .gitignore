@@ -37,6 +37,11 @@ next-env.d.ts
 # Database
 prisma/dev.db
 prisma/dev.db-journal
+
+# Runtime screenshots and live frames
+public/screenshots/
+public/live/
+builds/
 prisma/migrations/README.md
 
 # Testing
