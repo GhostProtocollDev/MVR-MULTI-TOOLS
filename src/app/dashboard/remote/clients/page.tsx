@@ -76,6 +76,20 @@ export default function RemoteClientsPage() {
   const idleN = clients.filter(c => getStatus(c).state === "idle").length
   const offlineN = clients.filter(c => getStatus(c).state === "offline").length
 
+  async function deleteClient(id: string) {
+    if (!confirm("Delete this client? All data will be removed.")) return
+    try {
+      const r = await fetch("/api/remote/clients", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      })
+      if (!r.ok) throw new Error("Failed")
+      toast.success("Client deleted")
+      fetchClients()
+    } catch { toast.error("Failed to delete") }
+  }
+
   const filtered = clients.filter(c => {
     if (statusFilter !== "all" && getStatus(c).state !== statusFilter) return false
     if (!search) return true
@@ -250,6 +264,11 @@ export default function RemoteClientsPage() {
                             className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-[11px] font-medium transition-colors">
                             Manage
                           </Link>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteClient(c.id) }}
+                            className="px-2 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 text-[10px] font-medium transition-colors border border-red-500/20">
+                            🗑
+                          </button>
                         </div>
                       </td>
                     </tr>

