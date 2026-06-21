@@ -177,7 +177,10 @@ export default function ClientDetailPage() {
     )
   }
 
-  const isOnline = client.status === "online"
+  const isOnline = (() => {
+    if (!client.lastHeartbeat) return false
+    return (Date.now() - new Date(client.lastHeartbeat).getTime()) / 1000 <= 90
+  })()
   const flagEmoji = (() => { try { const c=client.countryCode?.toUpperCase()||""; return c.length===2?String.fromCodePoint(0x1F1E6+c.charCodeAt(0)-65,0x1F1E6+c.charCodeAt(1)-65):"" } catch { return "" } })()
 
   const tabs = [

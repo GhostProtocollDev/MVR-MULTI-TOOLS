@@ -26,10 +26,9 @@ function osIcon(os: string | null): string {
   return "💻"
 }
 
-function getStatus(c: { lastHeartbeat: string | null; lastSeen: string | null }): { state: string; dot: string; color: string; bg: string; label: string } {
-  const hb = c.lastHeartbeat || c.lastSeen
-  if (!hb) return { state: "offline", ...statusBadge("offline") }
-  const diff = (Date.now() - new Date(hb).getTime()) / 1000
+function getStatus(c: { lastHeartbeat: string | null }): { state: string; dot: string; color: string; bg: string; label: string } {
+  if (!c.lastHeartbeat) return { state: "offline", ...statusBadge("offline") }
+  const diff = (Date.now() - new Date(c.lastHeartbeat).getTime()) / 1000
   if (diff <= 90) return { state: "online", ...statusBadge("online") }
   if (diff <= 300) return { state: "idle", ...statusBadge("idle") }
   return { state: "offline", ...statusBadge("offline") }
@@ -237,7 +236,7 @@ export default function RemoteClientsPage() {
                       </td>
                       {/* Last Seen */}
                       <td className="p-3">
-                        <span className="text-muted-foreground">{fmtAgo(c.lastHeartbeat || c.lastSeen)}</span>
+                        <span className="text-muted-foreground">{fmtAgo(c.lastHeartbeat)}</span>
                       </td>
                       {/* Manage */}
                       <td className="p-3 text-right">
