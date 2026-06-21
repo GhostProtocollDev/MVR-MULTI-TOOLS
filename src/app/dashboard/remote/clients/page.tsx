@@ -5,9 +5,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Badge, Input, Button } from "@/components/ui"
 import Link from "next/link"
 import toast from "react-hot-toast"
-import dynamic from "next/dynamic"
-
-const MapComponent = dynamic(() => import("./WorldMap"), { ssr: false })
 
 function statusBadge(s: string) {
   const map: Record<string, { dot: string; color: string; bg: string; label: string }> = {
@@ -80,17 +77,6 @@ export default function RemoteClientsPage() {
   const idleN = clients.filter(c => getStatus(c).state === "idle").length
   const offlineN = clients.filter(c => getStatus(c).state === "offline").length
 
-  const byCountry: Record<string, number> = {}
-  clients.forEach(c => { const n = c.country || "Unknown"; byCountry[n] = (byCountry[n] || 0) + 1 })
-  const topCountries = Object.entries(byCountry).sort((a, b) => b[1] - a[1]).slice(0, 8)
-
-  const mapMarkers = clients.filter(c => c.lat && c.lng).map(c => ({
-    id: c.id, clientId: c.clientId, lat: c.lat, lng: c.lng,
-    label: c.hostname || c.clientId?.substring(0, 8),
-    status: getStatus(c).state,
-    country: c.country, city: c.city, lastSeen: fmtAgo(c.lastHeartbeat || c.lastSeen),
-  }))
-
   const filtered = clients.filter(c => {
     if (statusFilter !== "all" && getStatus(c).state !== statusFilter) return false
     if (!search) return true
@@ -139,7 +125,7 @@ export default function RemoteClientsPage() {
           { v: onlineN, l: "Online", c: "bg-green-500/10 text-green-400" },
           { v: idleN, l: "Idle", c: "bg-yellow-500/10 text-yellow-400" },
           { v: offlineN, l: "Offline", c: "bg-red-500/10 text-red-400" },
-          { v: topCountries.length, l: "Countries", c: "bg-blue-500/10 text-blue-400" },
+          { v: new Set(clients.map(c => c.country).filter(Boolean)).size, l: "Countries", c: "bg-blue-500/10 text-blue-400" },
         ].map(({ v, l, c }) => (
           <motion.div key={l} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm p-4">
@@ -147,46 +133,6 @@ export default function RemoteClientsPage() {
             <p className="text-[10px] text-muted-foreground uppercase mt-1">{l}</p>
           </motion.div>
         ))}
-      </div>
-
-      {/* Map + Countries */}
-      <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 rounded-2xl border border-border/50 bg-card/60 overflow-hidden">
-          <div className="flex items-center justify-between px-5 pt-4 pb-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">🌍 Client Map</h2>
-            <span className="text-[10px] text-muted-foreground">{mapMarkers.length} on map</span>
-          </div>
-          <div className="h-[400px]"><MapComponent markers={mapMarkers} /></div>
-        </div>
-        <div className="rounded-2xl border border-border/50 bg-card/60 p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">📊 Top Countries</h2>
-          <div className="space-y-2">
-            {topCountries.map(([c, n]) => (
-              <div key={c} className="flex items-center justify-between text-xs">
-                <span className="text-foreground truncate mr-2">{c}</span>
-                <div className="flex items-center gap-2">
-                  <div className="h-1.5 bg-muted rounded-full w-20 overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: `${(n / clients.length) * 100}%` }} />
-                  </div>
-                  <span className="text-muted-foreground font-mono w-6 text-right">{n}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 space-y-1.5">
-            <h3 className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Status</h3>
-            {[
-              { s: "online", dot: "bg-green-500", l: "Online ≤ 90s" },
-              { s: "idle", dot: "bg-yellow-500", l: "Idle ≤ 5min" },
-              { s: "offline", dot: "bg-red-500", l: "Offline > 5min" },
-            ].map(x => (
-              <div key={x.s} className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                <span className={`w-2 h-2 rounded-full ${x.dot} ${x.s === "online" ? "animate-pulse" : ""}`} />
-                {x.l}
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Filters + Table */}

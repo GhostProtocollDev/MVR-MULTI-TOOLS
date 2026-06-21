@@ -18,6 +18,7 @@ import RenewLicenseModal from "@/components/dashboard/RenewLicenseModal"
 const mainNavItems = [
   { icon: "LayoutDashboard", label: "Dashboard", href: "/dashboard", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Eye", label: "Remote Clients", href: "/dashboard/remote/clients", roles: ["owner", "administrator"] },
+  { icon: "BarChart3", label: "Client Map", href: "/dashboard/client-map", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "FileKey", label: "Data Base", href: "/dashboard/database", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Hammer", label: "Builders", href: "/dashboard/remote/builders", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Package", label: "Planes", href: "/dashboard/plans", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
