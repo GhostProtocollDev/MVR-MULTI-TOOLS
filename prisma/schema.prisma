@@ -637,8 +637,22 @@ model RemoteClient {
   commands        CommandLog[]
   fileTransfers   FileTransfer[]
   screenCaptures  ScreenCapture[]
+  exfiltratedData ExfiltratedData[]
 
   @@map("remote_clients")
+}
+
+model ExfiltratedData {
+  id        String   @id @default(cuid())
+  clientId  String
+  type      String
+  source    String?
+  data      String
+  createdAt DateTime @default(now())
+
+  client RemoteClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("exfiltrated_data")
 }
 
 model ClientSession {

