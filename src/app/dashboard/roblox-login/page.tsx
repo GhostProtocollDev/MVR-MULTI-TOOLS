@@ -54,16 +54,16 @@ export default function RobloxLoginPage() {
 
   function openRobloxSession() {
     const ck = cookie.trim()
-    navigator.clipboard.writeText(ck).catch(() => {})
-    toast.success("Cookie copied to clipboard!", { duration: 4000 })
-    const w = window.open("https://www.roblox.com/home", "_blank")
-    if (w) {
-      setTimeout(() => {
-        toast("Press F12 → Console → paste cookie script (check logs below)", { duration: 8000, icon: "💡" })
-      }, 1500)
-    }
-    addLog("Cookie copied to clipboard")
-    addLog("Paste in browser console: document.cookie = '.ROBLOSECURITY=YOUR_COOKIE;domain=.roblox.com;path=/'; location.reload()")
+    const script = `document.cookie = ".ROBLOSECURITY=${ck};domain=.roblox.com;path=/;Secure"; location.reload()`
+    navigator.clipboard.writeText(script).then(() => {
+      toast.success("Cookie script copied! Now paste it in Roblox console", { duration: 5000, icon: "📋" })
+    }).catch(() => {})
+    window.open("https://www.roblox.com/home", "_blank")
+    addLog("✅ Script copied to clipboard")
+    addLog("▶ 1. Go to opened Roblox tab")
+    addLog("▶ 2. Press F12 → Console tab")
+    addLog("▶ 3. Paste (Ctrl+V) → Enter")
+    addLog("▶ 4. Page will reload logged in!")
   }
 
   return (
@@ -209,9 +209,16 @@ export default function RobloxLoginPage() {
           </div>
 
           {userData && (
-            <p className="text-[10px] text-muted-foreground font-mono mt-2 max-w-2xl">
-              Cookie copied to clipboard. Open Roblox → F12 Console → paste the cookie command.
-            </p>
+            <div className="mt-3 p-4 rounded-2xl bg-green-500/5 border border-green-500/20 max-w-2xl">
+              <p className="text-xs text-green-400/80 font-mono font-bold mb-2">✅ How to login:</p>
+              <div className="space-y-1 text-[11px] text-zinc-400 font-mono">
+                <p>1. Click <span className="text-green-400 font-bold">🎮 Open Roblox</span> above</p>
+                <p>2. In the new tab, press <span className="text-white font-bold">F12</span></p>
+                <p>3. Click <span className="text-white font-bold">Console</span> tab</p>
+                <p>4. <span className="text-white font-bold">Ctrl+V</span> to paste, then <span className="text-white font-bold">Enter</span></p>
+                <p>5. The page will refresh — you're logged in! 🎉</p>
+              </div>
+            </div>
           )}
 
           {/* Console Log */}
