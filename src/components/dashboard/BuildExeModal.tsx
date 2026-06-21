@@ -14,7 +14,7 @@ interface BuildExeModalProps {
 
 export default function BuildExeModal({ open, onClose, builder }: BuildExeModalProps) {
   const [exeName, setExeName] = useState(builder?.name?.replace(/[^a-zA-Z0-9_-]/g, "") || "GhostClient")
-  const [serverUrl, setServerUrl] = useState("http://localhost:3000")
+  const [serverUrl, setServerUrl] = useState("")
   const [heartbeatInterval, setHeartbeatInterval] = useState("30")
   const [country, setCountry] = useState(builder?.country || "")
   const [persist, setPersist] = useState(true)
@@ -26,6 +26,10 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
   const [installName, setInstallName] = useState("WindowsHostService")
   const [building, setBuilding] = useState(false)
   const [buildResult, setBuildResult] = useState<any>(null)
+
+  useEffect(() => {
+    setServerUrl(window.location.origin)
+  }, [])
 
   useEffect(() => {
     if (buildResult?.downloadUrl) {
@@ -161,15 +165,15 @@ export default function BuildExeModal({ open, onClose, builder }: BuildExeModalP
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-foreground/80 mb-1.5">Server URL</label>
+                      <label className="block text-sm font-medium text-foreground/80 mb-1.5">Server URL (Auto-detected)</label>
                       <input
                         type="text"
                         value={serverUrl}
                         onChange={(e) => setServerUrl(e.target.value)}
-                        placeholder="http://localhost:3000"
-                        className="input-premium w-full"
+                        placeholder="Auto-detected from deployment..."
+                        className="input-premium w-full text-green-400 font-mono"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">The server the client will connect to</p>
+                      <p className="text-xs text-muted-foreground mt-1">✅ Auto: connects to <span className="text-primary">{serverUrl || "this server"}</span> — works from anywhere, no IP needed</p>
                     </div>
 
                     <div>
