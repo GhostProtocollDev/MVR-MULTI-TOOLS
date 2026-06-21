@@ -7,8 +7,8 @@ import crypto from "crypto"
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if ((session?.user as any)?.role !== "owner") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const builders = await prisma.builder.findMany({
@@ -26,8 +26,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
-    if ((session?.user as any)?.role !== "owner") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const body = await req.json()

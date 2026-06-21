@@ -76,15 +76,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Remote access routes — owner/administrator only
+  // Remote access routes — authenticated users
   if (path.startsWith("/dashboard/remote")) {
     if (!token) {
       const loginUrl = new URL("/login", req.url)
       loginUrl.searchParams.set("callbackUrl", path)
       return NextResponse.redirect(loginUrl)
-    }
-    if (!hasAccess(role, "administrator")) {
-      return NextResponse.redirect(new URL(ROLE_HOME[role] || "/dashboard", req.url))
     }
     return NextResponse.next()
   }
