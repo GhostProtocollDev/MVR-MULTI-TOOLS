@@ -9,6 +9,10 @@ export async function GET() {
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+    const role = (session.user as any)?.role
+    if (role !== "owner" && role !== "administrator") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
 
     const clients = await prisma.remoteClient.findMany({
       include: {
@@ -90,6 +94,10 @@ export async function DELETE(req: Request) {
     const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    const delRole = (session.user as any)?.role
+    if (delRole !== "owner" && delRole !== "administrator") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const { id } = await req.json()

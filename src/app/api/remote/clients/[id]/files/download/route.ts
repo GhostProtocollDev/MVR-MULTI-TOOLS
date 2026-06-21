@@ -21,11 +21,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
 
     const { searchParams } = new URL(req.url)
-    const fileName = searchParams.get("name")
+    const rawName = searchParams.get("name")
 
-    if (!fileName) {
+    if (!rawName) {
       // List available files
-      const clientDir = path.join(process.cwd(), "uploads", "remote", client.id)
+      const clientDir = path.resolve(process.cwd(), "uploads", "remote", client.id)
       if (!fs.existsSync(clientDir)) {
         return NextResponse.json({ files: [] })
       }
@@ -36,7 +36,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ files })
     }
 
-    const filePath = path.join(process.cwd(), "uploads", "remote", client.id, fileName)
+    // FIX: Path traversal protection
+    const safeName = rawName.replace(/[\/\\]/g, "").replace(/\.\./g, "")
+    const clientDir = path.resolve(process.cwd(), "uploads", "remote", client.id)
+    const filePath = path.resolve(clientDir, safeName)
+    if (!filePath.startsWith(clientDir + path.sep)) {
+      return NextResponse.json({ error: "Invalid file path" }, { status: 400 })
+    }
+
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 })
     }
@@ -45,7 +52,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return new NextResponse(fileBuffer, {
       headers: {
         "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `attachment; filename="${safeName}"`,
         "Content-Length": String(fileBuffer.length),
       },
     })

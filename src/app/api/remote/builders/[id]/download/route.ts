@@ -18,8 +18,15 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
 
     const { searchParams } = new URL(req.url)
-    const fileName = searchParams.get("file") || "GhostClient.exe"
-    const filePath = path.join(process.cwd(), "builds", builder.uuid, fileName)
+    const rawName = searchParams.get("file") || "GhostClient.exe"
+    // FIX: Path traversal protection — strip directory separators and ..
+    const safeName = rawName.replace(/[\/\\]/g, "").replace(/\.\./g, "")
+    const builderDir = path.resolve(process.cwd(), "builds", builder.uuid)
+    const filePath = path.resolve(builderDir, safeName)
+    // Containment check — resolved path must be inside builder dir
+    if (!filePath.startsWith(builderDir + path.sep)) {
+      return NextResponse.json({ error: "Invalid file path" }, { status: 400 })
+    }
 
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 })
@@ -29,7 +36,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     return new NextResponse(fileBuffer, {
       headers: {
         "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `attachment; filename="${safeName}"`,
         "Content-Length": String(fileBuffer.length),
       },
     })

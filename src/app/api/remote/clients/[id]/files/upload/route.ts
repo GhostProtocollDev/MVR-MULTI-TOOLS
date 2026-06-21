@@ -15,7 +15,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
 
     const { searchParams } = new URL(req.url)
-    const fileName = searchParams.get("name") || `file_${Date.now()}`
+    const rawName = searchParams.get("name") || `file_${Date.now()}`
+    // FIX: Path traversal protection
+    const safeName = rawName.replace(/[\/\\]/g, "").replace(/\.\./g, "")
     const formData = await req.formData()
     const file = formData.get("file") as File
 
@@ -31,18 +33,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       fileSize = fileBuffer.length
     }
 
-    const clientDir = path.join(process.cwd(), "uploads", "remote", client.id)
+    // FIX: Size limit (50MB)
+    if (fileSize > 50 * 1024 * 1024) {
+      return NextResponse.json({ error: "File too large (max 50MB)" }, { status: 413 })
+    }
+
+    const clientDir = path.resolve(process.cwd(), "uploads", "remote", client.id)
     fs.mkdirSync(clientDir, { recursive: true })
-    const filePath = path.join(clientDir, fileName)
+    const filePath = path.resolve(clientDir, safeName)
+    // FIX: Containment check
+    if (!filePath.startsWith(clientDir + path.sep)) {
+      return NextResponse.json({ error: "Invalid file path" }, { status: 400 })
+    }
     fs.writeFileSync(filePath, fileBuffer)
 
     const transfer = await prisma.fileTransfer.create({
       data: {
         clientId: client.id,
         direction: "upload",
-        fileName,
+        fileName: safeName,
         fileSize,
-        filePath,
         status: "completed",
         progress: 100,
         completedAt: new Date(),

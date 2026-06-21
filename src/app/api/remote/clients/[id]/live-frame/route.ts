@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import fs from "fs"
 import path from "path"
 
-// POST: C# client uploads a live JPEG frame
+// POST: C# client uploads a live JPEG frame (no auth — client has no session)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const client = await prisma.remoteClient.findFirst({
@@ -13,6 +15,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const buf = Buffer.from(await req.arrayBuffer())
     if (buf.length < 100) return NextResponse.json({ error: "Empty" }, { status: 400 })
+    // FIX: Size limit (2MB for live frames)
+    if (buf.length > 2 * 1024 * 1024) return NextResponse.json({ error: "Too large" }, { status: 413 })
 
     const dir = path.join(process.cwd(), "public", "live")
     fs.mkdirSync(dir, { recursive: true })
@@ -32,9 +36,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-// GET: Frontend requests latest frame as JPEG image
+// GET: Frontend requests latest frame — requires owner/admin auth
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) return new NextResponse("Unauthorized", { status: 401 })
+    const role = (session.user as any)?.role
+    if (role !== "owner" && role !== "administrator") return new NextResponse("Forbidden", { status: 403 })
+
     const client = await prisma.remoteClient.findFirst({
       where: { OR: [{ clientId: params.id }, { id: params.id }] },
     })
