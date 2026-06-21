@@ -23,7 +23,6 @@ const mainNavItems = [
   { icon: "Package", label: "Planes", href: "/dashboard/plans", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Music", label: "Música", href: "/dashboard/music", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Shield", label: "Token Login", href: "/dashboard/discord-login", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
-  { icon: "Package", label: "Roblox Login", href: "/dashboard/roblox-login", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Palette", label: "Temas", href: "/dashboard/themes", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
   { icon: "Settings", label: "Ajustes", href: "/dashboard/settings", roles: ["owner", "administrator", "moderator", "reseller", "user"] },
 ]
